@@ -9,14 +9,15 @@
   <link rel="stylesheet" href="style.css?v=size1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=black1" defer></script>
-  <script src="cuboid.js?v=size1" defer></script>
-  <script src="app.js?v=size1" defer></script>
+  <script src="cuboid.js?v=random2" defer></script>
+  <script src="app.js?v=random2" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
   <main>
     <section class="intro"><div><p class="eyebrow">填入颜色 · 每次一步</p><h1>把混乱，转回整齐。</h1><p class="subtitle">记录你的魔方，跟着 X、Y、Z 轴旋转指引，一步步完成还原。</p></div><div class="random-actions"><button id="demo" class="secondary">试试随机魔方</button><button id="random-black" class="secondary">随机涂黑</button><label class="black-ratio">涂黑比例 <input id="black-percent" type="number" min="0" max="100" step="1" value="40" aria-label="随机涂黑百分比"> %</label></div></section>
     <section class="size-panel" aria-label="魔方尺寸设置"><div class="size-fields"><label>X 数量<input id="size-x" type="number" min="1" max="7" step="1" value="3"></label><label>Y 数量<input id="size-y" type="number" min="1" max="7" step="1" value="3"></label><label>Z 数量<input id="size-z" type="number" min="1" max="7" step="1" value="3"></label><button id="apply-size" class="secondary">应用尺寸</button></div><p id="size-hint">X 为左右格数，Y 为上下格数，Z 为前后格数，每项 1–7。应用后重新开始。</p><p id="solver-scope">三阶支持任意合法填色求解。</p></section>
+    <p id="scramble-info" class="hint" role="status">每次随机生成时，转法和打乱步数都会随机。</p>
     <div class="workspace">
       <section class="panel input-panel" aria-labelledby="input-title">
         <div class="panel-heading"><h2 id="input-title">六面填色</h2><button id="clear" class="text-button">清空重填</button></div>

@@ -59,7 +59,13 @@
       for(const f of faces)if([...text].filter(c=>c===f).length>[...this.solved].filter(c=>c===f).length)throw Error('颜色数量超过当前尺寸对应的面格数，请检查填色。');
     }
     legalMoves(){const out=[];for(const axis of ['X','Y','Z'])for(let layer=0;layer<this.dims[this.axisIndex(axis)];layer++)for(const turns of this.square(axis)?[1,-1,2]:[2])out.push({axis,layer,turns});return out;}
-    scramble(count=24,random=Math.random){
+    randomScrambleLength(random=Math.random){
+      const size=Math.max(...this.dims),min=Math.max(12,size*4),max=Math.max(24,size*8);
+      return min+Math.floor(random()*(max-min+1));
+    }
+    scramble(count,random=Math.random){
+      if(count===undefined)count=this.randomScrambleLength(random);
+      if(!Number.isInteger(count)||count<0||count>2000)throw Error('打乱步数必须是 0 到 2000 的整数。');
       const possible=this.legalMoves(),moves=[];let state=this.solved,last='';
       for(let i=0;i<count;i++){
         const choices=possible.filter(m=>m.axis+':'+m.layer!==last),m=choices[Math.floor(random()*choices.length)];

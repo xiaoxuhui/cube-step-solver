@@ -1,5 +1,5 @@
 importScripts('vendor/cube.js', 'vendor/solve.js', 'core.js?v=black1');
-importScripts('cuboid.js?v=size1');
+importScripts('cuboid.js?v=random2');
 let initialized=false;
 self.onmessage=event=>{
   const {text,id,dimensions=[3,3,3],history}=event.data;

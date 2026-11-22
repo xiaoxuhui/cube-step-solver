@@ -2,7 +2,7 @@
   const {faces,names,describe,validatePattern}=CubeCore;
   const {CuboidModel}=Cuboid;
   const colors={w:{name:'白',hex:'#f3f4ef'},r:{name:'红',hex:'#ef5966'},g:{name:'绿',hex:'#43c99a'},y:{name:'黄',hex:'#f3d358'},o:{name:'橙',hex:'#f6984c'},b:{name:'蓝',hex:'#508aeb'},k:{name:'黑',hex:'#07090e'}};
-  let model=new CuboidModel(),centers=['w','r','g','y','o','b'],stickers=[],selected='w',history=[];
+  let model=new CuboidModel(),centers=['w','r','g','y','o','b'],stickers=[],selected='w',history=[],scrambleCount=null;
   let moves=[],cursor=0,hasPlan=false,busy=false,animating=false,worker=null,job=0,timer=null;
   let view={x:-25,y:-35,z:0,scale:1};
   const $=id=>document.getElementById(id),cubeEl=$('cube'),net=$('net');
@@ -11,13 +11,14 @@
   function encoded(){return stickers.map(c=>c==='k'?'*':faces[centers.indexOf(c)]||'?').join('');}
   function fromPattern(text){stickers=[...text].map(c=>c==='*'?'k':faceColor(c));}
   fromPattern(model.solved);
-  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,blackPercent:Number($('black-percent').value)}));}catch{}}
+  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,scrambleCount,blackPercent:Number($('black-percent').value)}));}catch{}}
   try{
     const v=JSON.parse(localStorage.getItem('cube-step-v1'));
     if(v){const candidate=new CuboidModel(v.dimensions||[3,3,3]);
       if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])&&candidate.cells.every((c,i)=>!c.locked||v.stickers[i]===v.centers[faces.indexOf(c.face)])){
         model=candidate;centers=v.centers;stickers=v.stickers;history=null;
         if(Array.isArray(v.history)&&model.knownSolution(encoded(),v.history)!==null)history=v.history;
+        if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=2000)scrambleCount=v.scrambleCount;
         if(Number.isInteger(v.blackPercent)&&v.blackPercent>=0&&v.blackPercent<=100)$('black-percent').value=v.blackPercent;
       }
     }
@@ -72,6 +73,7 @@
   function applyView(){cubeEl.style.transform=`rotateX(${view.x}deg) rotateY(${view.y}deg) rotateZ(${view.z}deg) scale(${view.scale})`;}
   function moveInfo(move){return typeof move==='string'?{...describe(move),token:move}:model.describe(move);}
   function updateSteps(){
+    $('scramble-info').textContent=scrambleCount===null?'每次随机生成时，转法和打乱步数都会随机。':`最近一次生成：随机打乱 ${scrambleCount} 步。还原步数以计算结果为准。`;
     const complete=hasPlan&&cursor===moves.length;
     $('step-label').textContent=hasPlan?(complete?'还原完成':`下一步 · 第 ${cursor+1} 步`):'等待计算';$('step-count').textContent=`${cursor} / ${moves.length}`;
     const info=hasPlan&&!complete?moveInfo(moves[cursor]):null;$('move-token').textContent=complete?'✓':info?.token||'—';
@@ -99,18 +101,18 @@
   }
   function renderSize(){
     model.dims.forEach((n,i)=>$('size-'+['x','y','z'][i]).value=n);$('size-tag').textContent=model.dims.join(' × ');
-    $('solver-scope').textContent=model.classic||model.pocket?'二阶、三阶支持任意合法填色求解。':'此尺寸支持随机生成后逐步还原；自填状态会尝试寻找三步内的简单解。';
+    $('solver-scope').textContent=model.classic||model.pocket?'二阶、三阶支持任意合法填色求解。':'此尺寸按打乱记录逆向还原；自填状态会尝试寻找三步内的简单解。';
     $('paint-hint').textContent='先选颜色，再点方格。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。'+(model.classic?'中心格固定。':'所有方格均可填写，目标配色见下方。');renderManual();
   }
   $('apply-size').onclick=()=>{
     let next;try{next=new CuboidModel(['x','y','z'].map(a=>Number($('size-'+a).value)));}catch(e){status(e.message,'error');return;}
-    model=next;history=[];fromPattern(model.solved);invalidate();renderSize();renderAll();status(`已应用 ${model.dims.join(' × ')}，可以随机打乱或填写颜色。`);
+    model=next;history=[];scrambleCount=null;fromPattern(model.solved);invalidate();renderSize();renderAll();status(`已应用 ${model.dims.join(' × ')}，可以随机打乱或填写颜色。`);
   };
   $('manual-axis').onchange=renderManual;
   $('demo').onclick=()=>{
-    if(model.classic){const c=new Cube();let last='';for(let i=0;i<22;i++){let f;do{f=faces[Math.floor(Math.random()*6)];}while(f===last);last=f;c.move(f+['',"'",'2'][Math.floor(Math.random()*3)]);}fromPattern(c.asString());history=null;}
-    else{const result=model.scramble();fromPattern(result.state);history=result.moves;}
-    invalidate();renderAll();status('已生成合法的随机魔方。可再点“随机涂黑”，然后计算还原步骤。');
+    if(model.classic){scrambleCount=model.randomScrambleLength();const c=new Cube();let last='';for(let i=0;i<scrambleCount;i++){let f;do{f=faces[Math.floor(Math.random()*6)];}while(f===last);last=f;c.move(f+['',"'",'2'][Math.floor(Math.random()*3)]);}fromPattern(c.asString());history=null;}
+    else{const result=model.scramble();fromPattern(result.state);history=result.moves;scrambleCount=result.moves.length;}
+    invalidate();renderAll();status(`本次随机打乱 ${scrambleCount} 步。可再点“随机涂黑”，然后计算还原步骤。`);
   };
   $('random-black').onclick=()=>{
     const percent=Number($('black-percent').value);if($('black-percent').value.trim()===''||!Number.isInteger(percent)||percent<0||percent>100){status('涂黑比例必须是 0 到 100 的整数。','error');return;}
@@ -120,7 +122,7 @@
     invalidate();renderAll();status(`随机选取 ${count} 格，本次新增 ${added} 个黑格；其余颜色保留。`);
   };
   $('black-percent').onchange=save;
-  $('clear').onclick=()=>{stickers=model.cells.map(g=>g.locked?faceColor(g.face):null);history=null;invalidate();renderAll();status(model.classic?'已保留六个中心。请选择画笔，填写其他 48 格。':'已清空方格。可填写颜色，或将未填格涂黑。');};
+  $('clear').onclick=()=>{stickers=model.cells.map(g=>g.locked?faceColor(g.face):null);history=null;scrambleCount=null;invalidate();renderAll();status(model.classic?'已保留六个中心。请选择画笔，填写其他 48 格。':'已清空方格。可填写颜色，或将未填格涂黑。');};
   $('mask-empty').onclick=()=>{stickers=stickers.map(c=>c===null?'k':c);invalidate();renderAll();status('未填格已涂黑；计算时只要求非黑色格子归位。');};
   function finishSolve(){clearTimeout(timer);timer=null;busy=false;renderPalette();renderNet();updateSteps();}
   function workerError(message){finishSolve();worker?.terminate();worker=null;status(message,'error');}
@@ -130,7 +132,7 @@
     if(location.protocol==='file:'){status('请通过本地启动器或网站打开，浏览器直接打开文件不支持后台求解。','error');return;}
     busy=true;renderPalette();renderNet();updateSteps();status('正在计算还原步骤…');const id=++job;
     try{
-      if(!worker){worker=new Worker('solver-worker.js?v=size1');worker.onmessage=({data})=>{
+      if(!worker){worker=new Worker('solver-worker.js?v=random2');worker.onmessage=({data})=>{
         if(data.id!==job)return;if(data.kind==='progress'){status(data.message);return;}if(data.kind==='error'){workerError(data.message);return;}
         moves=data.moves;cursor=0;hasPlan=true;finishSolve();status(`找到 ${moves.length} 步还原方案。每点一次“执行下一步”，只进行一次转动。`,'success');
       };worker.onerror=()=>workerError('求解器加载失败，请刷新后重试。');}

@@ -100,3 +100,20 @@ for(let i=0;i<12;i++){
   assert(pocket.isSolved(moves.reduce((s,move)=>pocket.apply(s,move),text)),'arbitrary 2x2 color solving');
 }
 console.log('PASS: 12 independent 2x2 full and masked color solves.');
+
+let randomSeed=73647;const seededRandom=()=>{randomSeed=(Math.imul(randomSeed,1664525)+1013904223)>>>0;return randomSeed/4294967296;};
+for(const dims of [[3,3,3],[2,3,4],[7,7,7]]){
+  const m=new CuboidModel(dims),n=Math.max(...dims),min=Math.max(12,4*n),max=Math.max(24,8*n);
+  assert.equal(m.randomScrambleLength(()=>0),min);
+  assert.equal(m.randomScrambleLength(()=>1-Number.EPSILON),max);
+  const lengths=new Set(),states=new Set();
+  for(let i=0;i<10;i++){
+    const result=m.scramble(undefined,seededRandom);lengths.add(result.moves.length);states.add(result.state);
+    assert(result.moves.length>=min&&result.moves.length<=max);
+    let state=m.solved;for(const move of result.moves)state=m.apply(state,move);assert.equal(state,result.state);
+    const masked=[...state].map((c,j)=>j%5===0?'*':c).join('');
+    const answer=m.knownSolution(masked,result.moves);assert(answer);assert(m.isSolved(answer.reduce((s,move)=>m.apply(s,move),masked)));
+  }
+  assert(lengths.size>1,'seeded random scrambles must vary in length');assert(states.size>1,'random scrambles must vary in state');
+}
+console.log('PASS: random length endpoints, varied lengths and states, and verified masked restoration for 30 seeded scrambles.');
