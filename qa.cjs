@@ -24,8 +24,8 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     assert.match(await page.locator('#status').innerText(),/还原完成/);
     assert(await page.locator('.face-grid').evaluateAll(grids=>grids.every(g=>new Set([...g.children].map(e=>e.style.background)).size===1)));
     await page.locator('#demo').click();
-    await page.locator('#manual-axis').selectOption('Z');
     await page.locator('.manual summary').click();
+    await page.locator('#manual-axis').selectOption('Z');
     await page.locator('#manual-apply').click();
     assert.match(await page.locator('#status').innerText(),/Z 轴/);
     await page.locator('#solve').click();
