@@ -86,8 +86,58 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     assert.match(await page.locator('#status').innerText(),/所有非黑色格子都已归位/);
     const restored=await currentPattern();assert([...restored].every((c,i)=>c==='*'||c===faces[Math.floor(i/9)]));
     await page.reload();assert.equal(await currentPattern(),restored);
+    async function applySize(dims){
+      for(let i=0;i<3;i++)await page.locator('#size-'+['x','y','z'][i]).fill(String(dims[i]));
+      await page.locator('#apply-size').click();
+      assert.equal(await page.locator('.sticker').count(),2*(dims[0]*dims[1]+dims[0]*dims[2]+dims[1]*dims[2]));
+    }
+    const blackCount=async()=>[...(await currentPattern())].filter(c=>c==='*').length;
+    await page.locator('#demo').click();
+    const unmasked=await currentPattern();
+    await page.locator('#black-percent').fill('0');await page.locator('#random-black').click();assert.equal(await currentPattern(),unmasked);
+    await page.locator('#black-percent').fill('50');await page.locator('#random-black').click();assert.equal(await blackCount(),24);
+    await page.locator('#black-percent').fill('100');await page.locator('#random-black').click();assert.equal(await blackCount(),48);
+    assert.equal(await page.locator('.center:disabled').count(),6,'classic fixed centers survive random masking');
+    await page.locator('#black-percent').fill('101');await page.locator('#random-black').click();assert.match(await page.locator('#status').innerText(),/0 到 100/);
+    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 7/);assert.equal(await page.locator('.sticker').count(),54);
+    await applySize([2,3,4]);
+    assert.equal(await page.locator('[data-face="U"] .sticker').count(),8);
+    assert.equal(await page.locator('[data-face="R"] .sticker').count(),12);
+    assert.equal(await page.locator('[data-face="F"] .sticker').count(),6);
+    await page.locator('#demo').click();await page.locator('#black-percent').fill('50');await page.locator('#random-black').click();assert.equal(await blackCount(),26);
+    await page.locator('.manual summary').click();await page.locator('#manual-axis').selectOption('X');
+    assert.equal(await page.locator('#manual-turn').inputValue(),'2');
+    assert.equal(await page.locator('#manual-turn option:disabled').count(),2);
+    const cuboidStart=await currentPattern();
+    await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
+    await page.emulateMedia({reducedMotion:'no-preference'});await page.locator('#next').click();await page.waitForFunction(()=>!document.getElementById('prev').disabled);
+    assert.equal(await blackCount(),26);
+    await page.locator('#prev').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);assert.equal(await currentPattern(),cuboidStart);
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.reload();assert.equal(await currentPattern(),cuboidStart);assert.equal(await page.locator('#size-z').inputValue(),'4');
+    await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
+    await page.setViewportSize({width:1360,height:1100});await page.screenshot({path:'desktop-preview.png',fullPage:true});
+    await page.setViewportSize({width:390,height:844});await page.screenshot({path:'mobile-preview.png',fullPage:true});
+    let cuboidSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++cuboidSteps>30)throw Error('cuboid must restore from recorded scramble');}
+    assert.match(await page.locator('#status').innerText(),/所有非黑色格子都已归位/);
+    assert(await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('cube-step-v1'));const m=new Cuboid.CuboidModel(s.dimensions);return m.isSolved(s.stickers.map(c=>c==='k'?'*':CubeCore.faces[s.centers.indexOf(c)]).join(''));}));
+    await applySize([4,4,4]);await page.locator('#demo').click();
+    await page.locator('.manual summary').click();await page.locator('#manual-axis').selectOption('X');await page.locator('#manual-layer').selectOption('1');await page.locator('#manual-turn').selectOption('');await page.locator('#manual-apply').click();
+    await page.locator('#black-percent').fill('25');await page.locator('#random-black').click();assert.equal(await blackCount(),24);
+    await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
+    let bigSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++bigSteps>32)throw Error('4x4 restoration must finish');}
+    assert.match(await page.locator('#status').innerText(),/还原完成/);
+    // A 2x2 input without provenance must use the independent color solver.
+    const {CuboidModel}=require('./dist/cuboid');const pocket=new CuboidModel([2,2,2]);const pocketText=pocket.scramble().state;
+    await page.evaluate(({text,centerColors,faces})=>localStorage.setItem('cube-step-v1',JSON.stringify({dimensions:[2,2,2],centers:centerColors,stickers:[...text].map(c=>centerColors[faces.indexOf(c)])})),{text:pocketText,centerColors,faces});
+    await page.reload();await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled,{},{timeout:30000});
+    let pocketSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++pocketSteps>32)throw Error('2x2 must solve from colors');}
+    assert.match(await page.locator('#status').innerText(),/还原完成/);
+    await applySize([7,7,7]);assert.equal(await page.locator('.tile').count(),294);
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'largest dimension must scroll inside net without page overflow');
     assert.deepEqual(errors,[]);
     console.log('PASS: browser worker solve, one-step execution, undo, complete restoration, manual axis rotation, mobile layout, input validation and persistence.');
     console.log('PASS: black brush, ignore-unfilled, zero-step masked goal, one-step partial worker, real animation and undo, complex masked worker solve, mask persistence and seven-color mobile layout.');
+    console.log('PASS: size fields and invalid values, exact random black percentages, fixed centers, 2x3x4 layer constraints and animated undo, history across reload, 4x4 inner slices, independent 2x2 color solving and 7x7 mobile layout.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

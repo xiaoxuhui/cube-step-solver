@@ -64,3 +64,39 @@ for(let i=0;i<48;i++){
   assert.equal(state,partial,'black stickers must return to their original positions on undo');
 }
 console.log('PASS: black wildcard completion, 18 one-turn partial goals, impossible masked input, 48 random partial solves and exact mask undo.');
+
+const {CuboidModel}=require('./dist/cuboid');
+assert.throws(()=>new CuboidModel([0,3,3]),/1 到 7/);
+assert.throws(()=>new CuboidModel([2.5,3,3]),/1 到 7/);
+assert.throws(()=>new CuboidModel([3,8,3]),/1 到 7/);
+for(let x=1;x<=7;x++)for(let y=1;y<=7;y++)for(let z=1;z<=7;z++){
+  const m=new CuboidModel([x,y,z]);assert.equal(m.cells.length,2*(x*y+x*z+y*z));
+  assert.equal(m.positions.size,m.cells.length,'surface geometry must have unique positions');
+  for(const axis of ['X','Y','Z']){
+    const move={axis,layer:0,turns:2},permutation=m.permutation(move);
+    assert.equal(new Set(permutation).size,m.cells.length,'every legal turn must permute all stickers');
+    assert.equal(m.apply(m.apply(m.solved,move),move),m.solved,'half-turn inverse');
+    if(!m.square(axis))assert.throws(()=>m.apply(m.solved,{...move,turns:1}),/只能旋转 180/);
+  }
+}
+const classic=new CuboidModel();
+for(const face of faces)for(const suffix of ['',"'",'2']){
+  const text=Cube.random().asString();assert.equal(classic.apply(text,face+suffix),new Cube(Cube.fromString(text)).move(face+suffix).asString());
+}
+for(const dims of [[1,1,1],[1,2,3],[2,2,2],[2,3,4],[3,4,3],[4,4,4],[7,6,5],[7,7,7]]){
+  const m=new CuboidModel(dims);
+  for(const move of m.legalMoves())assert.equal(m.apply(m.apply(m.solved,move),m.inverse(move)),m.solved);
+  const {state,moves}=m.scramble(),masked=[...state].map((c,i)=>i%3===0?'*':c).join('');
+  const answer=m.knownSolution(masked,moves);assert(answer);assert(m.isSolved(answer.reduce((s,move)=>m.apply(s,move),masked)));
+  assert.equal(m.knownSolution(state,[{axis:'X',layer:99,turns:2}]),null,'invalid stored history must be rejected');
+  const move=m.legalMoves()[0],one=m.apply(m.solved,move),short=m.shortSolve(one,1);assert(short);assert(m.isSolved(short.reduce((s,t)=>m.apply(s,t),one)));
+}
+console.log('PASS: all 343 supported dimensions, valid surface permutations and cuboid turn restrictions, classic compatibility, generated masked restoration and shallow solving.');
+const pocket=new CuboidModel([2,2,2]);
+for(let i=0;i<12;i++){
+  const {state}=pocket.scramble();
+  const text=[...state].map((c,j)=>i%2&&j%4===0?'*':c).join('');
+  const representative=completePattern(pocket.solverPattern(text),Cube),moves=representative.solve().trim().split(/\s+/).filter(Boolean);
+  assert(pocket.isSolved(moves.reduce((s,move)=>pocket.apply(s,move),text)),'arbitrary 2x2 color solving');
+}
+console.log('PASS: 12 independent 2x2 full and masked color solves.');
