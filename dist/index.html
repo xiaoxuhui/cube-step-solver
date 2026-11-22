@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="填写三阶魔方六面颜色，查看 X、Y、Z 轴逐步旋转指引，一次一步还原。">
   <title>魔方一步步 · 三阶魔方还原</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=black1">
   <script src="vendor/cube.js" defer></script>
-  <script src="core.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="core.js?v=black1" defer></script>
+  <script src="app.js?v=black1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span class="tag">3 × 3 还原助手</span></header>
@@ -18,8 +18,9 @@
     <div class="workspace">
       <section class="panel input-panel" aria-labelledby="input-title">
         <div class="panel-heading"><h2 id="input-title">六面填色</h2><button id="clear" class="text-button">清空重填</button></div>
-        <p class="hint">先选颜色，再点方格。中心格固定，每种颜色各 9 格。</p>
+        <p class="hint">先选颜色，再点方格。黑色表示忽略：只需将非黑色格子还原到对应中心的面。中心格固定。</p>
         <div id="palette" class="palette" role="group" aria-label="选择画笔颜色"></div>
+        <button id="mask-empty" class="text-button">将未填格涂黑（忽略）</button>
         <div class="net-scroll"><div id="net" class="net" aria-label="魔方六面展开图"></div></div>
         <p class="orientation">展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。</p>
         <details><summary>怎么对照实物填色？</summary><p>先选定上面 U 和前面 F，并保持这两个方向。左右面像书页一样向外展开，背面接在右面外侧。上面的下边、下面的上边都与前面相接。可拖动右侧模型核对各面的方向，中心颜色不变。</p><p>默认上白、下黄、前绿、后蓝、左橙、右红。如果实物朝向不同，先将白色中心朝上、绿色中心朝前。自定义配色可在下面更改中心颜色。</p><div id="centers" class="centers"></div></details>
@@ -41,7 +42,7 @@
         <details class="manual"><summary>手动转动一层</summary><p>用于调整屏幕中的魔方。每次操作会清除原还原方案，需要重新计算。</p><div class="manual-controls"><label>轴<select id="manual-axis"><option>X</option><option>Y</option><option>Z</option></select></label><label>层<select id="manual-layer"><option value="1">正侧（右 / 上 / 前）</option><option value="-1">负侧（左 / 下 / 后）</option></select></label><label>方向<select id="manual-turn"><option value="">顺时针 90°</option><option value="'">逆时针 90°</option><option value="2">旋转 180°</option></select></label><button id="manual-apply" class="secondary">转动一层</button></div><p>方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。</p></details>
       </section>
     </div>
-    <footer><span>一步一转，直到六面同色。</span><span>颜色和还原计算均在你的设备上处理。</span></footer>
+    <footer><span>一步一转，直到所有非黑色格子归位。</span><span>颜色和还原计算均在你的设备上处理。</span></footer>
   </main>
 </body>
 </html>
