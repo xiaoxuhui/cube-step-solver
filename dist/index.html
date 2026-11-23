@@ -6,17 +6,18 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="设置 X、Y、Z 方向格数，随机魔方和随机涂黑，跟随每一步旋转还原非黑色格子。">
   <title>魔方一步步 · 多尺寸魔方</title>
-  <link rel="stylesheet" href="style.css?v=size1">
+  <link rel="stylesheet" href="style.css?v=run1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=black1" defer></script>
-  <script src="cuboid.js?v=random2" defer></script>
-  <script src="app.js?v=random2" defer></script>
+  <script src="cuboid.js?v=run1" defer></script>
+  <script src="large-view.js?v=run1" defer></script>
+  <script src="app.js?v=run1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
   <main>
     <section class="intro"><div><p class="eyebrow">填入颜色 · 每次一步</p><h1>把混乱，转回整齐。</h1><p class="subtitle">记录你的魔方，跟着 X、Y、Z 轴旋转指引，一步步完成还原。</p></div><div class="random-actions"><button id="demo" class="secondary">试试随机魔方</button><button id="random-black" class="secondary">随机涂黑</button><label class="black-ratio">涂黑比例 <input id="black-percent" type="number" min="0" max="100" step="1" value="40" aria-label="随机涂黑百分比"> %</label></div></section>
-    <section class="size-panel" aria-label="魔方尺寸设置"><div class="size-fields"><label>X 数量<input id="size-x" type="number" min="1" max="7" step="1" value="3"></label><label>Y 数量<input id="size-y" type="number" min="1" max="7" step="1" value="3"></label><label>Z 数量<input id="size-z" type="number" min="1" max="7" step="1" value="3"></label><button id="apply-size" class="secondary">应用尺寸</button></div><p id="size-hint">X 为左右格数，Y 为上下格数，Z 为前后格数，每项 1–7。应用后重新开始。</p><p id="solver-scope">三阶支持任意合法填色求解。</p></section>
+    <section class="size-panel" aria-label="魔方尺寸设置"><div class="size-fields"><label>X 数量<input id="size-x" type="number" min="1" max="100" step="1" value="3"></label><label>Y 数量<input id="size-y" type="number" min="1" max="100" step="1" value="3"></label><label>Z 数量<input id="size-z" type="number" min="1" max="100" step="1" value="3"></label><button id="apply-size" class="secondary">应用尺寸</button></div><p id="size-hint">X 为左右格数，Y 为上下格数，Z 为前后格数，每项 1–100。应用后重新开始。</p><p id="solver-scope">三阶支持任意合法填色求解。</p></section>
     <p id="scramble-info" class="hint" role="status">每次随机生成时，转法和打乱步数都会随机。</p>
     <div class="workspace">
       <section class="panel input-panel" aria-labelledby="input-title">
@@ -34,13 +35,17 @@
         <div class="panel-heading"><h2 id="view-title">旋转预览</h2><button id="home-view" class="text-button">回正视角</button></div>
         <div class="view-legend"><span><i class="axis-x"></i>X 左右轴</span><span><i class="axis-y"></i>Y 上下轴</span><span><i class="axis-z"></i>Z 前后轴</span></div>
         <div id="scene" class="scene" aria-label="可拖动旋转视角的三维魔方"><div id="cube" class="cube"></div><div class="shadow"></div></div>
-        <p class="drag-hint">拖动查看各面 · 滚轮缩放</p>
+        <p id="preview-hint" class="drag-hint">拖动查看各面 · 滚轮缩放</p>
         <div class="view-controls" role="group" aria-label="绕轴查看魔方"><span>查看视角</span><button data-view="X">X</button><button data-view="Y">Y</button><button data-view="Z">Z</button></div>
         <div class="step-card">
           <div class="step-top"><span id="step-label">等待填色</span><span id="step-count">0 / 0</span></div>
           <div class="instruction"><span id="move-token" class="move-token">—</span><div><h3 id="instruction-title">准备好你的魔方</h3><p id="instruction-detail">填写六面颜色后，点击“计算还原步骤”。</p></div></div>
           <div class="progress" role="progressbar" aria-label="还原进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div>
           <div class="step-buttons"><button id="prev" class="secondary" disabled>上一步</button><button id="next" class="primary" disabled>执行下一步</button></div>
+          <div class="run-buttons"><button id="run" class="primary" disabled>运行</button><button id="reset-run" class="secondary" disabled>重置本次运行</button></div>
+          <label class="speed-control">运行速度 <input id="run-speed" type="range" min="0.5" max="30" step="0.5" value="4" aria-label="运行速度，每秒步数"><output id="speed-value">4 步/秒</output></label>
+          <p class="run-help">重置会恢复到本次计算前的魔方；暂停后当前转动完成即停止。</p>
+          <p id="solver-method" class="run-help" role="status"></p>
         </div>
         <details class="manual"><summary>手动转动一层</summary><p>每次转动后需要重新计算方案。非正方形截面仅允许 180°，以保持长方体尺寸。</p><div class="manual-controls"><label>轴<select id="manual-axis"><option>X</option><option>Y</option><option>Z</option></select></label><label>层<select id="manual-layer"><option value="1">正侧（右 / 上 / 前）</option><option value="-1">负侧（左 / 下 / 后）</option></select></label><label>方向<select id="manual-turn"><option value="">顺时针 90°</option><option value="'">逆时针 90°</option><option value="2">旋转 180°</option></select></label><button id="manual-apply" class="secondary">转动一层</button></div><p id="manual-hint">方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。</p></details>
       </section>

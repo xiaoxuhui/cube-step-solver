@@ -99,7 +99,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     await page.locator('#black-percent').fill('100');await page.locator('#random-black').click();assert.equal(await blackCount(),48);
     assert.equal(await page.locator('.center:disabled').count(),6,'classic fixed centers survive random masking');
     await page.locator('#black-percent').fill('101');await page.locator('#random-black').click();assert.match(await page.locator('#status').innerText(),/0 到 100/);
-    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 7/);assert.equal(await page.locator('.sticker').count(),54);
+    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 100/);assert.equal(await page.locator('.sticker').count(),54);
     await applySize([2,3,4]);
     assert.equal(await page.locator('[data-face="U"] .sticker').count(),8);
     assert.equal(await page.locator('[data-face="R"] .sticker').count(),12);
@@ -118,14 +118,14 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
     await page.setViewportSize({width:1360,height:1100});await page.screenshot({path:'desktop-preview.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});await page.screenshot({path:'mobile-preview.png',fullPage:true});
-    let cuboidSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++cuboidSteps>40)throw Error('cuboid must restore from recorded scramble');}
+    let cuboidSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++cuboidSteps>50)throw Error('cuboid must restore from recorded scramble');}
     assert.match(await page.locator('#status').innerText(),/所有非黑色格子都已归位/);
     assert(await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('cube-step-v1'));const m=new Cuboid.CuboidModel(s.dimensions);return m.isSolved(s.stickers.map(c=>c==='k'?'*':CubeCore.faces[s.centers.indexOf(c)]).join(''));}));
     await applySize([4,4,4]);await page.locator('#demo').click();
     await page.locator('.manual summary').click();await page.locator('#manual-axis').selectOption('X');await page.locator('#manual-layer').selectOption('1');await page.locator('#manual-turn').selectOption('');await page.locator('#manual-apply').click();
     await page.locator('#black-percent').fill('25');await page.locator('#random-black').click();assert.equal(await blackCount(),24);
     await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
-    let bigSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++bigSteps>40)throw Error('4x4 restoration must finish');}
+    let bigSteps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++bigSteps>50)throw Error('4x4 restoration must finish');}
     assert.match(await page.locator('#status').innerText(),/还原完成/);
     // A 2x2 input without provenance must use the independent color solver.
     const {CuboidModel}=require('./dist/cuboid');const pocket=new CuboidModel([2,2,2]);const pocketText=pocket.scramble().state;
@@ -140,7 +140,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     for(let i=0;i<4;i++){
       await page.locator('#demo').click();
       const data=await page.evaluate(()=>JSON.parse(localStorage.getItem('cube-step-v1')));
-      assert(data.scrambleCount>=28&&data.scrambleCount<=56);assert.equal(data.history.length,data.scrambleCount);sevenLengths.push(data.scrambleCount);
+      assert(data.scrambleCount>=42&&data.scrambleCount<=84);assert.equal(data.history.length,data.scrambleCount);sevenLengths.push(data.scrambleCount);
       assert.match(await page.locator('#scramble-info').innerText(),new RegExp('随机打乱 '+data.scrambleCount+' 步'));
       await page.locator('#black-percent').fill('40');await page.locator('#random-black').click();
       await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
@@ -148,7 +148,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
       if(i===3){
         await page.reload();assert.match(await page.locator('#scramble-info').innerText(),new RegExp('随机打乱 '+data.scrambleCount+' 步'));
         await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled);
-        let steps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++steps>56)throw Error('random-length seven must restore');}
+        let steps=0;while(await page.locator('#next').isEnabled()){await page.locator('#next').click();if(++steps>84)throw Error('random-length seven must restore');}
         assert.match(await page.locator('#status').innerText(),/还原完成/);
       }
     }

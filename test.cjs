@@ -66,9 +66,9 @@ for(let i=0;i<48;i++){
 console.log('PASS: black wildcard completion, 18 one-turn partial goals, impossible masked input, 48 random partial solves and exact mask undo.');
 
 const {CuboidModel}=require('./dist/cuboid');
-assert.throws(()=>new CuboidModel([0,3,3]),/1 到 7/);
-assert.throws(()=>new CuboidModel([2.5,3,3]),/1 到 7/);
-assert.throws(()=>new CuboidModel([3,8,3]),/1 到 7/);
+assert.throws(()=>new CuboidModel([0,3,3]),/1 到 100/);
+assert.throws(()=>new CuboidModel([2.5,3,3]),/1 到 100/);
+assert.throws(()=>new CuboidModel([3,101,3]),/1 到 100/);
 for(let x=1;x<=7;x++)for(let y=1;y<=7;y++)for(let z=1;z<=7;z++){
   const m=new CuboidModel([x,y,z]);assert.equal(m.cells.length,2*(x*y+x*z+y*z));
   assert.equal(m.positions.size,m.cells.length,'surface geometry must have unique positions');
@@ -103,7 +103,7 @@ console.log('PASS: 12 independent 2x2 full and masked color solves.');
 
 let randomSeed=73647;const seededRandom=()=>{randomSeed=(Math.imul(randomSeed,1664525)+1013904223)>>>0;return randomSeed/4294967296;};
 for(const dims of [[3,3,3],[2,3,4],[7,7,7]]){
-  const m=new CuboidModel(dims),n=Math.max(...dims),min=Math.max(12,4*n),max=Math.max(24,8*n);
+  const m=new CuboidModel(dims),n=Math.max(...dims),min=Math.max(12,6*n),max=Math.max(24,12*n);
   assert.equal(m.randomScrambleLength(()=>0),min);
   assert.equal(m.randomScrambleLength(()=>1-Number.EPSILON),max);
   const lengths=new Set(),states=new Set();
@@ -117,3 +117,20 @@ for(const dims of [[3,3,3],[2,3,4],[7,7,7]]){
   assert(lengths.size>1,'seeded random scrambles must vary in length');assert(states.size>1,'random scrambles must vary in state');
 }
 console.log('PASS: random length endpoints, varied lengths and states, and verified masked restoration for 30 seeded scrambles.');
+
+for(const dims of [[7,7,7],[12,11,10],[30,30,30],[100,100,100],[1,50,100]]){
+  const m=new CuboidModel(dims);assert.equal(m.cells.length,2*(dims[0]*dims[1]+dims[0]*dims[2]+dims[1]*dims[2]));
+  const move=m.legalMoves()[0],changed=m.apply(m.solved,move);assert.equal(m.apply(changed,m.inverse(move)),m.solved);
+  const sparse=m.sparsePermutation(move);assert(sparse.to.length<=m.cells.length);
+  if(Math.max(...dims)===100&&dims[0]===100)assert(sparse.to.length<m.cells.length/4,'large turns must store only affected stickers');
+}
+const mathModel=new CuboidModel([7,7,7]);
+const A={axis:'X',layer:0,turns:1},B={axis:'X',layer:1,turns:1},C={axis:'Y',layer:0,turns:1};
+assert.deepEqual(mathModel.simplifyMoves([A,B,mathModel.inverse(A)]),[B],'same-axis disjoint layers commute');
+assert.deepEqual(mathModel.simplifyMoves([A,C,mathModel.inverse(C),mathModel.inverse(A)]),[],'nested inverse blocks cancel');
+const oneTurnState=mathModel.apply(mathModel.solved,A),searchAnswer=mathModel.findSolution(oneTurnState,null);assert.equal(searchAnswer.method,'置换搜索');assert(mathModel.isSolved(searchAnswer.moves.reduce((s,m)=>mathModel.apply(s,m),oneTurnState)));
+for(let i=0;i<8;i++){
+  const {state,moves}=mathModel.scramble(undefined,seededRandom),masked=[...state].map((c,j)=>j%3===0?'*':c).join('');
+  const found=mathModel.findSolution(masked,moves);assert(found);assert(found.moves.length<=moves.length);assert(mathModel.isSolved(found.moves.reduce((s,m)=>mathModel.apply(s,m),masked)));
+}
+console.log('PASS: dimensions up to 100, sparse turns, permutation group cancellation, state-only search and verified high-order optimized solutions.');
