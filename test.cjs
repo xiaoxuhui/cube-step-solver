@@ -66,9 +66,9 @@ for(let i=0;i<48;i++){
 console.log('PASS: black wildcard completion, 18 one-turn partial goals, impossible masked input, 48 random partial solves and exact mask undo.');
 
 const {CuboidModel}=require('./dist/cuboid');
-assert.throws(()=>new CuboidModel([0,3,3]),/1 到 100/);
-assert.throws(()=>new CuboidModel([2.5,3,3]),/1 到 100/);
-assert.throws(()=>new CuboidModel([3,101,3]),/1 到 100/);
+assert.throws(()=>new CuboidModel([0,3,3]),/1 到 200/);
+assert.throws(()=>new CuboidModel([2.5,3,3]),/1 到 200/);
+assert.throws(()=>new CuboidModel([3,201,3]),/1 到 200/);
 for(let x=1;x<=7;x++)for(let y=1;y<=7;y++)for(let z=1;z<=7;z++){
   const m=new CuboidModel([x,y,z]);assert.equal(m.cells.length,2*(x*y+x*z+y*z));
   assert.equal(m.positions.size,m.cells.length,'surface geometry must have unique positions');

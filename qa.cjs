@@ -99,7 +99,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     await page.locator('#black-percent').fill('100');await page.locator('#random-black').click();assert.equal(await blackCount(),48);
     assert.equal(await page.locator('.center:disabled').count(),6,'classic fixed centers survive random masking');
     await page.locator('#black-percent').fill('101');await page.locator('#random-black').click();assert.match(await page.locator('#status').innerText(),/0 到 100/);
-    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 100/);assert.equal(await page.locator('.sticker').count(),54);
+    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 200/);assert.equal(await page.locator('.sticker').count(),54);
     await applySize([2,3,4]);
     assert.equal(await page.locator('[data-face="U"] .sticker').count(),8);
     assert.equal(await page.locator('[data-face="R"] .sticker').count(),12);

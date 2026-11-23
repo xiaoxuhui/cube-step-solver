@@ -10,6 +10,7 @@
   let view={x:-25,y:-35,z:0,scale:1};
   const $=id=>document.getElementById(id),cubeEl=$('cube'),net=$('net');
   let activeTurn=null;
+  let faceDraftDirty=false;
   $('animation-enabled').checked=!matchMedia('(prefers-reduced-motion: reduce)').matches;
   const status=(text,kind='')=>{$('status').textContent=text;$('status').className='status '+kind;};
   const faceColor=face=>centers[faces.indexOf(face)];
@@ -23,9 +24,9 @@
       if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])&&candidate.cells.every((c,i)=>!c.locked||v.stickers[i]===v.centers[faces.indexOf(c.face)])){
         model=candidate;centers=v.centers;stickers=v.stickers;history=null;
         if(Array.isArray(v.history)&&model.knownSolution(encoded(),v.history)!==null)history=v.history;
-        if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=2000)scrambleCount=v.scrambleCount;
+        if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=10000)scrambleCount=v.scrambleCount;
         if(Number.isInteger(v.blackPercent)&&v.blackPercent>=0&&v.blackPercent<=100)$('black-percent').value=v.blackPercent;
-        if(Number.isFinite(v.speed)&&v.speed>=.5&&v.speed<=30)$('run-speed').value=v.speed;
+        if(Number.isFinite(v.speed)&&v.speed>=.5&&v.speed<=120)$('run-speed').value=v.speed;
         if(typeof v.animationEnabled==='boolean')$('animation-enabled').checked=v.animationEnabled;
       }
     }
@@ -38,7 +39,7 @@
     const m=model.normalize(move),last=history[history.length-1];
     if(last&&last.axis===m.axis&&last.layer===m.layer){const turns=(last.turns+m.turns+8)%4;history.pop();if(turns)history.push({...m,turns:turns===3?-1:turns});}
     else history.push(m);
-    if(history.length>2000)history=null;
+    if(history.length>10000)history=null;
   }
   function renderPalette(){
     $('palette').replaceChildren();
@@ -93,13 +94,15 @@
     const complete=hasPlan&&cursor===moves.length;
     $('step-label').textContent=hasPlan?(complete?'还原完成':`下一步 · 第 ${cursor+1} 步`):'等待计算';$('step-count').textContent=`${cursor} / ${moves.length}`;
     const info=hasPlan&&!complete?moveInfo(moves[cursor]):null;$('move-token').textContent=complete?'✓':info?.token||'—';
+    $('move-token').style.fontSize=(info?.token?.length||0)>=4?'20px':'28px';
     $('instruction-title').textContent=info?.title||(complete?(stickers.includes('k')?'非黑色格子已归位':'六面已经归位'):'准备好你的魔方');
     $('instruction-detail').textContent=info?.detail||(complete?(stickers.includes('k')?'黑色格子不参与完成判断。你可以返回上一步复习。':'已完成全部步骤。你可以返回上一步复习。'):'填写六面颜色后，点击“计算还原步骤”。');
     const percent=hasPlan?(moves.length?cursor/moves.length*100:100):0;$('progress-fill').style.width=percent+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percent)));
     $('prev').disabled=!hasPlan||cursor===0||busy||animating||playing;$('next').disabled=!hasPlan||complete||busy||animating||playing;$('next').textContent=complete?'已完成还原':animating?'正在转动…':'执行下一步';
     $('run').textContent=playing?'暂停':'运行';$('run').disabled=busy||!hasPlan||complete||(!playing&&animating);$('reset-run').disabled=!planStart||busy;
     $('speed-value').textContent=$('run-speed').value+' 步/秒';
-    for(const id of ['solve','demo','random-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn'])$(id).disabled=busy||animating||playing;
+    if(document.activeElement!==$('run-speed-number'))$('run-speed-number').value=$('run-speed').value;
+    for(const id of ['solve','demo','random-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn','input-face','face-input','read-face','apply-face'])$(id).disabled=busy||animating||playing;
     $('solve').textContent=busy?'正在计算…':'计算还原步骤';document.querySelectorAll('#centers select').forEach(el=>el.disabled=busy||animating||playing);
   }
   function renderAll(){renderPalette();renderNet();renderCube();updateSteps();save();}
@@ -122,8 +125,26 @@
     $('solver-scope').textContent=model.classic||model.pocket?'二阶、三阶支持任意合法填色求解。':'此尺寸使用置换搜索和化简求解；复杂随机状态会使用打乱记录构造可验证的解。复杂自填状态可能超出搜索范围。';
     $('preview-hint').textContent=isLarge()?'拖动查看各面 · 三维预览抽样显示，填色和求解使用全部格子':'拖动查看各面 · 滚轮缩放';
     document.querySelector('.orientation').textContent=isLarge()?'大尺寸按单面填写。先选一个面，行从上向下、列从左向右；可缩放、滚动，或按行列精确填色。':'展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。';
-    $('paint-hint').textContent='先选颜色，再点方格。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。'+(model.classic?'中心格固定。':'所有方格均可填写，目标配色见下方。');renderManual();
+    $('paint-hint').textContent='先选颜色，再点方格，也可以展开“手动填写颜色”直接输入。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。'+(model.classic?'中心格固定。':'所有方格均可填写，目标配色见下方。');renderManual();readFace();
   }
+  function readFace(){
+    const face=$('input-face').value,[rows,cols]=model.shapes[face],offset=model.offsets[face];
+    $('face-input-shape').textContent=`${names[face]}面：${rows} 行 × ${cols} 列，共 ${rows*cols} 格。`;
+    $('face-input').value=ColorInput.formatFace(stickers.slice(offset,offset+rows*cols),cols);$('face-input-status').textContent='';faceDraftDirty=false;
+  }
+  $('input-face').onchange=readFace;$('read-face').onclick=readFace;
+  $('face-input').oninput=()=>faceDraftDirty=true;
+  $('manual-colors').ontoggle=()=>{if($('manual-colors').open&&!faceDraftDirty)readFace();};
+  $('apply-face').onclick=()=>{
+    const face=$('input-face').value,[rows,cols]=model.shapes[face],offset=model.offsets[face];
+    let entered;try{
+      entered=ColorInput.parseFace($('face-input').value,rows*cols);
+      if(model.classic&&entered[4]!==faceColor(face))throw Error(`${names[face]}面中心必须是${colors[faceColor(face)].name}色。`);
+    }catch(error){$('face-input-status').textContent=error.message;$('face-input-status').className='error';return;}
+    for(let j=0;j<entered.length;j++)stickers[offset+j]=entered[j];
+    retainHistory();invalidate();faceDraftDirty=false;if(isLarge())largeView.face=face;renderAll();
+    $('face-input-status').textContent=`${names[face]}面已应用 ${entered.length} 格。`;$('face-input-status').className='success';status('手动颜色已应用，可以继续填写其他面或计算还原步骤。');
+  };
   $('apply-size').onclick=()=>{
     let next;try{next=new CuboidModel(['x','y','z'].map(a=>Number($('size-'+a).value)));}catch(e){status(e.message,'error');return;}
     model=next;history=[];scrambleCount=null;fromPattern(model.solved);invalidate();renderSize();renderAll();status(`已应用 ${model.dims.join(' × ')}，可以随机打乱或填写颜色。`);
@@ -131,7 +152,7 @@
   $('manual-axis').onchange=renderManual;
   function ensureWorker(){
     if(worker)return;
-    worker=new Worker('solver-worker.js?v=run1');worker.onmessage=({data})=>{
+    worker=new Worker('solver-worker.js?v=expand1');worker.onmessage=({data})=>{
       if(data.id!==job)return;if(data.kind==='progress'){status(data.message);return;}if(data.kind==='error'){workerError(data.message);return;}
       if(data.kind==='scramble'){
         fromPattern(data.state);history=data.moves;scrambleCount=data.moves.length;finishSolve();renderAll();status(`本次随机打乱 ${scrambleCount} 步。可以涂黑后计算还原步骤。`);return;
@@ -207,11 +228,28 @@
     if(playing){pauseRun();status('已暂停，当前转动完成后停止。');return;}
     if(busy||animating||!hasPlan||cursor>=moves.length)return;
     playing=true;const epoch=++playEpoch;renderAll();status('正在连续运行，可随时暂停或调整速度。');
-    while(playing&&epoch===playEpoch&&cursor<moves.length){const start=performance.now();await stepForward();if(playing&&epoch===playEpoch)await new Promise(resolve=>setTimeout(resolve,Math.max(0,1000/Number($('run-speed').value)-(performance.now()-start))));}
+    let nextStepAt=performance.now();
+    while(playing&&epoch===playEpoch&&cursor<moves.length){
+      const now=performance.now(),interval=1000/Number($('run-speed').value);
+      if(now<nextStepAt){await new Promise(resolve=>setTimeout(resolve,Math.min(16,nextStepAt-now)));continue;}
+      if($('animation-enabled').checked){await stepForward();nextStepAt=now+interval;}
+      else{
+        const count=Math.min(12,moves.length-cursor,Math.floor((now-nextStepAt)/interval)+1);let state=encoded();
+        for(let n=0;n<count;n++){const move=moves[cursor++];state=model.apply(state,move);appendHistory(move);}
+        fromPattern(state);nextStepAt+=count*interval;if(nextStepAt<now-250)nextStepAt=now-250;
+        if(cursor===moves.length){playing=false;playEpoch++;status(stickers.includes('k')?'还原完成！所有非黑色格子都已归位，黑色格子忽略。':'还原完成！六个面都已同色。','success');}
+        renderAll();await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }
     if(epoch===playEpoch){playing=false;renderAll();}
   };
   $('reset-run').onclick=()=>{if(!planStart)return;pauseRun();if(animating){resetPending=true;status('当前转动完成后重置本次运行。');}else restoreRun();};
-  $('run-speed').oninput=()=>{$('speed-value').textContent=$('run-speed').value+' 步/秒';save();};
+  $('run-speed').oninput=()=>{$('speed-value').textContent=$('run-speed').value+' 步/秒';$('run-speed-number').value=$('run-speed').value;save();};
+  $('run-speed-number').onchange=()=>{
+    const value=Number($('run-speed-number').value);
+    if(!Number.isFinite(value)||value<.5||value>120){$('run-speed-number').value=$('run-speed').value;status('速度必须是 0.5 到 120 步/秒。','error');return;}
+    $('run-speed').value=Math.round(value*2)/2;$('run-speed').dispatchEvent(new Event('input'));
+  };
   $('animation-enabled').onchange=save;
   $('manual-apply').onclick=async()=>{
     try{model.classic?validatePattern(encoded(),Cube):model.validate(encoded());}catch(e){status(e.message,'error');return;}

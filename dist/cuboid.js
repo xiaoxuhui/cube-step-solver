@@ -4,7 +4,7 @@
   function quarter(v,axis){const [x,y,z]=v;return axis==='X'?[x,z,-y]:axis==='Y'?[-z,y,x]:[y,-x,z];}
   class CuboidModel {
     constructor(dimensions=[3,3,3]){
-      if(!Array.isArray(dimensions)||dimensions.length!==3||dimensions.some(n=>!Number.isInteger(n)||n<1||n>100))throw Error('X、Y、Z 必须是 1 到 100 的整数。');
+      if(!Array.isArray(dimensions)||dimensions.length!==3||dimensions.some(n=>!Number.isInteger(n)||n<1||n>200))throw Error('X、Y、Z 必须是 1 到 200 的整数。');
       this.dims=[...dimensions];this.classic=dimensions.every(n=>n===3);this.pocket=dimensions.every(n=>n===2);
       const [X,Y,Z]=dimensions;this.shapes={U:[Z,X],R:[Y,Z],F:[Y,X],D:[Z,X],L:[Y,Z],B:[Y,X]};
       this.cells=[];this.offsets={};this.cache=new Map();this.sparseCache=new Map();
@@ -74,7 +74,7 @@
     }
     scramble(count,random=Math.random){
       if(count===undefined)count=this.randomScrambleLength(random);
-      if(!Number.isInteger(count)||count<0||count>2000)throw Error('打乱步数必须是 0 到 2000 的整数。');
+      if(!Number.isInteger(count)||count<0||count>10000)throw Error('打乱步数必须是 0 到 10000 的整数。');
       const possible=this.legalMoves(),moves=[];let state=this.solved,last='';
       for(let i=0;i<count;i++){
         const choices=possible.filter(m=>m.axis+':'+m.layer!==last),m=choices[Math.floor(random()*choices.length)];
@@ -83,7 +83,7 @@
       return {state,moves};
     }
     knownSolution(text,history){
-      if(!Array.isArray(history)||history.length>2000)return null;
+      if(!Array.isArray(history)||history.length>10000)return null;
       let known=this.solved;
       try{for(const move of history)known=this.apply(known,move);}catch{return null;}
       if([...text].some((c,i)=>c!=='*'&&c!==known[i]))return null;
