@@ -9,12 +9,14 @@
   const isLarge=()=>Math.max(...model.dims)>12;
   let view={x:-25,y:-35,z:0,scale:1};
   const $=id=>document.getElementById(id),cubeEl=$('cube'),net=$('net');
+  let activeTurn=null;
+  $('animation-enabled').checked=!matchMedia('(prefers-reduced-motion: reduce)').matches;
   const status=(text,kind='')=>{$('status').textContent=text;$('status').className='status '+kind;};
   const faceColor=face=>centers[faces.indexOf(face)];
   function encoded(){return stickers.map(c=>c==='k'?'*':faces[centers.indexOf(c)]||'?').join('');}
   function fromPattern(text){stickers=[...text].map(c=>c==='*'?'k':faceColor(c));}
   fromPattern(model.solved);
-  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,scrambleCount,speed:Number($('run-speed').value),blackPercent:Number($('black-percent').value)}));}catch{}}
+  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,scrambleCount,animationEnabled:$('animation-enabled').checked,speed:Number($('run-speed').value),blackPercent:Number($('black-percent').value)}));}catch{}}
   try{
     const v=JSON.parse(localStorage.getItem('cube-step-v1'));
     if(v){const candidate=new CuboidModel(v.dimensions||[3,3,3]);
@@ -24,6 +26,7 @@
         if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=2000)scrambleCount=v.scrambleCount;
         if(Number.isInteger(v.blackPercent)&&v.blackPercent>=0&&v.blackPercent<=100)$('black-percent').value=v.blackPercent;
         if(Number.isFinite(v.speed)&&v.speed>=.5&&v.speed<=30)$('run-speed').value=v.speed;
+        if(typeof v.animationEnabled==='boolean')$('animation-enabled').checked=v.animationEnabled;
       }
     }
   }catch{}
@@ -83,7 +86,7 @@
       cubeEl.append(el);
     });applyView();
   }
-  function applyView(){if(isLarge()){largeView.renderScene({scene:$('scene'),cube:cubeEl,model,stickers,colors,view});return;}cubeEl.style.transform=`rotateX(${view.x}deg) rotateY(${view.y}deg) rotateZ(${view.z}deg) scale(${view.scale})`;}
+  function applyView(){if(isLarge()){largeView.renderScene({scene:$('scene'),cube:cubeEl,model,stickers,colors,view,rotation:activeTurn});return;}cubeEl.style.transform=`rotateX(${view.x}deg) rotateY(${view.y}deg) rotateZ(${view.z}deg) scale(${view.scale})`;}
   function moveInfo(move){return typeof move==='string'?{...describe(move),token:move}:model.describe(move);}
   function updateSteps(){
     $('scramble-info').textContent=scrambleCount===null?'每次随机生成时，转法和打乱步数都会随机。':`最近一次生成：随机打乱 ${scrambleCount} 步。还原步数以计算结果为准。`;
@@ -172,12 +175,21 @@
     const text=encoded(),info=model.describe(move);animating=true;renderPalette();renderNet();updateSteps();
     const duration=Math.min(650,800/Number($('run-speed').value));
     if(isLarge()){
-      if(!matchMedia('(prefers-reduced-motion: reduce)').matches)await new Promise(resolve=>setTimeout(resolve,duration));
+      if($('animation-enabled').checked)await new Promise(resolve=>{
+        let started=null;activeTurn={axis:info.axis,coordinate:info.coordinate,angle:0};
+        function frame(now){
+          if(started===null)started=now;
+          const t=Math.min(1,(now-started)/duration);activeTurn.angle=info.css*(.5-.5*Math.cos(Math.PI*t));applyView();
+          if(t<1)requestAnimationFrame(frame);else resolve();
+        }
+        requestAnimationFrame(frame);
+      });
+      activeTurn=null;
       fromPattern(model.apply(text,move));appendHistory(move);animating=false;return;
     }
     const group=document.createElement('div');group.className='turn-layer';cubeEl.append(group);const ai=model.axisIndex(info.axis);
     for(const el of [...cubeEl.querySelectorAll('.tile')])if(model.cells[Number(el.dataset.cell)].p[ai]===info.coordinate)group.append(el);
-    if(!matchMedia('(prefers-reduced-motion: reduce)').matches){const animation=group.animate([{transform:`rotate${info.axis}(0deg)`},{transform:`rotate${info.axis}(${info.css}deg)`}],{duration,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});await animation.finished;}
+    if($('animation-enabled').checked){const animation=group.animate([{transform:`rotate${info.axis}(0deg)`},{transform:`rotate${info.axis}(${info.css}deg)`}],{duration,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'});await animation.finished;}
     fromPattern(model.apply(text,move));appendHistory(move);animating=false;
   }
   function pauseRun(){playing=false;playEpoch++;renderPalette();renderNet();updateSteps();}
@@ -200,6 +212,7 @@
   };
   $('reset-run').onclick=()=>{if(!planStart)return;pauseRun();if(animating){resetPending=true;status('当前转动完成后重置本次运行。');}else restoreRun();};
   $('run-speed').oninput=()=>{$('speed-value').textContent=$('run-speed').value+' 步/秒';save();};
+  $('animation-enabled').onchange=save;
   $('manual-apply').onclick=async()=>{
     try{model.classic?validatePattern(encoded(),Cube):model.validate(encoded());}catch(e){status(e.message,'error');return;}
     const axis=$('manual-axis').value,layer=Number($('manual-layer').value),turn=$('manual-turn').value;

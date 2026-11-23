@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="设置 X、Y、Z 方向格数，随机魔方和随机涂黑，跟随每一步旋转还原非黑色格子。">
   <title>魔方一步步 · 多尺寸魔方</title>
-  <link rel="stylesheet" href="style.css?v=run1">
+  <link rel="stylesheet" href="style.css?v=motion1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=black1" defer></script>
   <script src="cuboid.js?v=run1" defer></script>
-  <script src="large-view.js?v=run1" defer></script>
-  <script src="app.js?v=run1" defer></script>
+  <script src="large-view.js?v=motion1" defer></script>
+  <script src="app.js?v=motion1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
@@ -44,6 +44,7 @@
           <div class="step-buttons"><button id="prev" class="secondary" disabled>上一步</button><button id="next" class="primary" disabled>执行下一步</button></div>
           <div class="run-buttons"><button id="run" class="primary" disabled>运行</button><button id="reset-run" class="secondary" disabled>重置本次运行</button></div>
           <label class="speed-control">运行速度 <input id="run-speed" type="range" min="0.5" max="30" step="0.5" value="4" aria-label="运行速度，每秒步数"><output id="speed-value">4 步/秒</output></label>
+          <label class="animation-control"><input id="animation-enabled" type="checkbox" checked>显示转动动画</label>
           <p class="run-help">重置会恢复到本次计算前的魔方；暂停后当前转动完成即停止。</p>
           <p id="solver-method" class="run-help" role="status"></p>
         </div>
