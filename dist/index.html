@@ -6,13 +6,14 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="设置 X、Y、Z 方向格数，随机魔方和随机涂黑，跟随每一步旋转还原非黑色格子。">
   <title>魔方一步步 · 多尺寸魔方</title>
-  <link rel="stylesheet" href="style.css?v=expand1">
+  <link rel="stylesheet" href="style.css?v=net1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=black1" defer></script>
   <script src="cuboid.js?v=expand1" defer></script>
-  <script src="large-view.js?v=motion1" defer></script>
+  <script src="large-view.js?v=net1" defer></script>
+  <script src="net-motion.js?v=net1" defer></script>
   <script src="color-input.js?v=expand1" defer></script>
-  <script src="app.js?v=expand1" defer></script>
+  <script src="app.js?v=net1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
@@ -27,6 +28,8 @@
         <div id="palette" class="palette" role="group" aria-label="选择画笔颜色"></div>
         <button id="mask-empty" class="text-button">将未填格涂黑（忽略）</button>
         <details id="manual-colors" class="manual-colors"><summary>手动填写颜色（输入或粘贴）</summary><p>选一个面，按从上到下、从左到右填写。可用中文颜色，或 W 白、R 红、G 绿、Y 黄、O 橙、B 蓝、K 黑；空格和换行都可以。W9 表示连续 9 个白格，K9 表示 9 个忽略格，? 表示未填。</p><label>填写哪个面<select id="input-face" aria-label="手动填写的面"><option value="U">上 U</option><option value="R">右 R</option><option value="F" selected>前 F</option><option value="D">下 D</option><option value="L">左 L</option><option value="B">后 B</option></select></label><p id="face-input-shape" class="hint"></p><textarea id="face-input" rows="6" maxlength="500000" spellcheck="false" aria-label="手动填写面颜色" placeholder="例如：GGG 换行 GGG 换行 GGG，也可填写 G9"></textarea><div class="face-input-buttons"><button id="read-face" class="secondary">读取当前面</button><button id="apply-face" class="primary">应用到此面</button></div><p id="face-input-status" role="status" aria-live="polite"></p></details>
+        <div class="net-process"><div><span id="net-process-label" role="status">展开图与三维视图同步显示每一步。</span><span id="net-process-value"></span></div><div class="net-process-track"><div id="net-process-fill"></div></div></div>
+        <div class="net-view-controls"><button id="net-run" class="primary" disabled>运行</button><button id="net-next" class="secondary" disabled>下一步</button><button id="net-reset" class="secondary" disabled>重置</button></div>
         <div class="net-scroll"><div id="net" class="net" aria-label="魔方六面展开图"></div></div>
         <p class="orientation">展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。</p>
         <details><summary>怎么对照实物填色？</summary><p>先选定上面 U 和前面 F，并保持这两个方向。左右面像书页一样向外展开，背面接在右面外侧。上面的下边、下面的上边都与前面相接。可拖动右侧模型核对各面的方向。</p><p>目标配色默认上白、下黄、前绿、后蓝、左橙、右红。可在下面调整。三阶中心格固定；其他尺寸以目标配色判断还原，所有方格均可填写。</p><div id="centers" class="centers"></div></details>

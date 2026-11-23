@@ -31,7 +31,7 @@
       const tabs=document.createElement('div');tabs.className='face-tabs';
       const names={U:'上',R:'右',F:'前',D:'下',L:'左',B:'后'};
       for(const face of ['U','R','F','D','L','B']){
-        const b=document.createElement('button');b.textContent=names[face]+' '+face;b.setAttribute('aria-pressed',String(this.face===face));b.disabled=disabled;
+        const b=document.createElement('button');b.textContent=names[face]+' '+face;b.dataset.face=face;b.setAttribute('aria-pressed',String(this.face===face));b.disabled=disabled;
         b.onclick=()=>{this.face=face;this.scroll={left:0,top:0};net.querySelector('.large-fill-scroll')?.remove();this.renderNet({net,model,stickers,colors,disabled,onPaint});};tabs.append(b);
       }
       const [rows,cols]=model.shapes[this.face],tools=document.createElement('div');tools.className='large-fill-tools';
