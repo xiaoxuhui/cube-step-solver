@@ -54,6 +54,28 @@
       const p=this.sparsePermutation(move),out=text.split('');for(let j=0;j<p.to.length;j++)out[p.to[j]]=text[p.from[j]];return out.join('');
     }
     inverse(move){const m=this.normalize(move);return {...m,turns:Math.abs(m.turns)===2?2:-m.turns};}
+    normalizeGroup(group){
+      const list=(Array.isArray(group)?group:[group]).map(move=>this.normalize(move));if(!list.length)return [];
+      const axis=list[0].axis;if(list.some(move=>move.axis!==axis))throw Error('并行组只能包含同一个旋转轴。');
+      const counts=new Map();for(const move of list)counts.set(move.layer,((counts.get(move.layer)||0)+move.turns+4)%4);
+      return [...counts].sort((a,b)=>a[0]-b[0]).filter(([,turns])=>turns).map(([layer,turns])=>({axis,layer,turns:turns===3?-1:turns}));
+    }
+    parallelGroups(moves){
+      const groups=[];
+      for(const raw of moves){const move=this.normalize(raw),last=groups[groups.length-1];
+        if(last&&last[0].axis===move.axis){const merged=this.normalizeGroup([...last,move]);groups.pop();if(merged.length)groups.push(merged);}
+        else groups.push([move]);
+      }
+      return groups;
+    }
+    applyGroup(text,group){
+      if(text.length!==this.cells.length)throw Error('色块数量与尺寸不一致。');
+      const moves=this.normalizeGroup(group),out=text.split('');
+      // Different layers on one axis have disjoint supports, so all read from the same state.
+      for(const move of moves){const p=this.sparsePermutation(move);for(let i=0;i<p.to.length;i++)out[p.to[i]]=text[p.from[i]];}
+      return out.join('');
+    }
+    inverseGroup(group){return this.normalizeGroup(group).map(move=>this.inverse(move));}
     solverPattern(text){
       if(this.classic)return text;
       if(!this.pocket)throw Error('此尺寸不使用角块求解器。');

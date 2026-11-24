@@ -3,7 +3,7 @@
   const {CuboidModel}=Cuboid;
   const colors={w:{name:'白',hex:'#f3f4ef'},r:{name:'红',hex:'#ef5966'},g:{name:'绿',hex:'#43c99a'},y:{name:'黄',hex:'#f3d358'},o:{name:'橙',hex:'#f6984c'},b:{name:'蓝',hex:'#508aeb'},k:{name:'黑',hex:'#07090e'}};
   let model=new CuboidModel(),centers=['w','r','g','y','o','b'],stickers=[],selected='w',history=[],scrambleCount=null;
-  let moves=[],cursor=0,hasPlan=false,busy=false,animating=false,worker=null,job=0,timer=null;
+  let moves=[],steps=[],cursor=0,hasPlan=false,busy=false,animating=false,worker=null,job=0,timer=null;
   let playing=false,playEpoch=0,planStart=null,resetPending=false,solveStart=null;
   const largeView=new LargeCubeView();
   const netMotion=new NetMotion.NetTurnView();
@@ -11,6 +11,7 @@
   let view={x:-25,y:-35,z:0,scale:1};
   const $=id=>document.getElementById(id),cubeEl=$('cube'),net=$('net');
   let activeTurn=null;
+  let activeStep=null;
   let faceDraftDirty=false;
   $('animation-enabled').checked=!matchMedia('(prefers-reduced-motion: reduce)').matches;
   const status=(text,kind='')=>{$('status').textContent=text;$('status').className='status '+kind;};
@@ -18,7 +19,7 @@
   function encoded(){return stickers.map(c=>c==='k'?'*':faces[centers.indexOf(c)]||'?').join('');}
   function fromPattern(text){stickers=[...text].map(c=>c==='*'?'k':faceColor(c));}
   fromPattern(model.solved);
-  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,scrambleCount,animationEnabled:$('animation-enabled').checked,speed:Number($('run-speed').value),blackPercent:Number($('black-percent').value)}));}catch{}}
+  function save(){try{localStorage.setItem('cube-step-v1',JSON.stringify({centers,stickers,dimensions:model.dims,history,scrambleCount,parallelEnabled:$('parallel-enabled').checked,animationEnabled:$('animation-enabled').checked,speed:Number($('run-speed').value),blackPercent:Number($('black-percent').value)}));}catch{}}
   try{
     const v=JSON.parse(localStorage.getItem('cube-step-v1'));
     if(v){const candidate=new CuboidModel(v.dimensions||[3,3,3]);
@@ -29,11 +30,12 @@
         if(Number.isInteger(v.blackPercent)&&v.blackPercent>=0&&v.blackPercent<=100)$('black-percent').value=v.blackPercent;
         if(Number.isFinite(v.speed)&&v.speed>=.5&&v.speed<=120)$('run-speed').value=v.speed;
         if(typeof v.animationEnabled==='boolean')$('animation-enabled').checked=v.animationEnabled;
+        if(typeof v.parallelEnabled==='boolean')$('parallel-enabled').checked=v.parallelEnabled;
       }
     }
   }catch{}
   function snapshot(){return {stickers:[...stickers],history:history?history.map(m=>({...m})):null};}
-  function invalidate(){playing=false;playEpoch++;planStart=null;resetPending=false;moves=[];cursor=0;hasPlan=false;$('solver-method').textContent='';updateSteps();}
+  function invalidate(){playing=false;playEpoch++;planStart=null;resetPending=false;moves=[];steps=[];cursor=0;hasPlan=false;$('solver-method').textContent='';updateSteps();}
   function retainHistory(){if(history&&model.knownSolution(encoded(),history)===null)history=null;}
   function appendHistory(move){
     if(!history)return;
@@ -90,22 +92,32 @@
   }
   function applyView(){if(isLarge()){largeView.renderScene({scene:$('scene'),cube:cubeEl,model,stickers,colors,view,rotation:activeTurn});return;}cubeEl.style.transform=`rotateX(${view.x}deg) rotateY(${view.y}deg) rotateZ(${view.z}deg) scale(${view.scale})`;}
   function moveInfo(move){return typeof move==='string'?{...describe(move),token:move}:model.describe(move);}
+  function makeSteps(list){return $('parallel-enabled').checked?model.parallelGroups(list):list.map(move=>[move]);}
+  function stepInfo(group){
+    if(!$('parallel-enabled').checked||!hasPlan)return moveInfo(group[0]);
+    const list=model.normalizeGroup(group),axis=list[0].axis,details=list.map(move=>model.describe(move));
+    return {token:axis+'∥',title:`${axis} 轴 · 并行 ${list.length} 层`,detail:details.slice(0,3).map(info=>`第 ${info.layer+1} 层 ${Math.abs(info.turns)===2?'180°':info.turns<0?'逆时针 90°':'顺时针 90°'}`).join('；')+(list.length>3?`；其余 ${list.length-3} 层见下方明细。`:'。正对'+{X:'右',Y:'上',Z:'前'}[axis]+'侧观察。')};
+  }
   function updateSteps(){
-    if(!animating){$('net-process-label').textContent=hasPlan?`展开图运行：已执行 ${cursor} / ${moves.length} 步`:'展开图与三维视图同步显示每一步。';$('net-process-value').textContent='';$('net-process-fill').style.transform=`scaleX(${hasPlan?(moves.length?cursor/moves.length:1):0})`;}
+    const parallel=$('parallel-enabled').checked,unit=parallel?'组':'步';
+    if(!animating){$('net-process-label').textContent=hasPlan?`展开图运行：已执行 ${cursor} / ${steps.length} ${unit}`:'展开图与三维视图同步显示每一步。';$('net-process-value').textContent='';$('net-process-fill').style.transform=`scaleX(${hasPlan?(steps.length?cursor/steps.length:1):0})`;}
     $('scramble-info').textContent=scrambleCount===null?'每次随机生成时，转法和打乱步数都会随机。':`最近一次生成：随机打乱 ${scrambleCount} 步。还原步数以计算结果为准。`;
-    const complete=hasPlan&&cursor===moves.length;
-    $('step-label').textContent=hasPlan?(complete?'还原完成':`下一步 · 第 ${cursor+1} 步`):'等待计算';$('step-count').textContent=`${cursor} / ${moves.length}`;
-    const info=hasPlan&&!complete?moveInfo(moves[cursor]):null;$('move-token').textContent=complete?'✓':info?.token||'—';
+    const complete=hasPlan&&cursor===steps.length;
+    $('step-label').textContent=hasPlan?(complete?'还原完成':`下一${unit} · 第 ${cursor+1} ${unit}`):'等待计算';$('step-count').textContent=`${cursor} / ${steps.length}${parallel?' 组':''}`;
+    const current=animating&&activeStep?activeStep:hasPlan&&!complete?steps[cursor]:null;
+    const info=current?stepInfo(current):null;$('move-token').textContent=complete?'✓':info?.token||'—';
     $('move-token').style.fontSize=(info?.token?.length||0)>=4?'20px':'28px';
     $('instruction-title').textContent=info?.title||(complete?(stickers.includes('k')?'非黑色格子已归位':'六面已经归位'):'准备好你的魔方');
     $('instruction-detail').textContent=info?.detail||(complete?(stickers.includes('k')?'黑色格子不参与完成判断。你可以返回上一步复习。':'已完成全部步骤。你可以返回上一步复习。'):'填写六面颜色后，点击“计算还原步骤”。');
-    const percent=hasPlan?(moves.length?cursor/moves.length*100:100):0;$('progress-fill').style.width=percent+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percent)));
-    $('prev').disabled=!hasPlan||cursor===0||busy||animating||playing;$('next').disabled=!hasPlan||complete||busy||animating||playing;$('next').textContent=complete?'已完成还原':animating?'正在转动…':'执行下一步';
+    $('parallel-count').textContent=hasPlan?`${parallel?'并行执行':'逐层执行'}：共 ${steps.reduce((n,group)=>n+group.length,0)} 次层转动，原方案 ${moves.length} 步。`:(parallel?'并行模式：同轴不同层可在一组内同时转动。':'');
+    $('parallel-group-details').hidden=!(parallel&&current&&current.length>1);$('parallel-layer-list').textContent=current?model.normalizeGroup(current).map(move=>model.describe(move).title).join('\n'):'';
+    const percent=hasPlan?(steps.length?cursor/steps.length*100:100):0;$('progress-fill').style.width=percent+'%';document.querySelector('.progress').setAttribute('aria-valuenow',String(Math.round(percent)));
+    $('prev').disabled=!hasPlan||cursor===0||busy||animating||playing;$('prev').textContent=parallel?'上一组':'上一步';$('next').disabled=!hasPlan||complete||busy||animating||playing;$('next').textContent=complete?'已完成还原':animating?'正在转动…':parallel?'执行下一组':'执行下一步';
     $('run').textContent=playing?'暂停':'运行';$('run').disabled=busy||!hasPlan||complete||(!playing&&animating);$('reset-run').disabled=!planStart||busy;
-    $('net-run').textContent=$('run').textContent;$('net-run').disabled=$('run').disabled;$('net-next').disabled=$('next').disabled;$('net-reset').disabled=$('reset-run').disabled;
-    $('speed-value').textContent=$('run-speed').value+' 步/秒';
+    $('net-run').textContent=$('run').textContent;$('net-run').disabled=$('run').disabled;$('net-next').textContent=parallel?'下一组':'下一步';$('net-next').disabled=$('next').disabled;$('net-reset').disabled=$('reset-run').disabled;
+    $('speed-value').textContent=$('run-speed').value+' '+unit+'/秒';$('speed-number-unit').textContent=unit+'/秒';
     if(document.activeElement!==$('run-speed-number'))$('run-speed-number').value=$('run-speed').value;
-    for(const id of ['solve','demo','random-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn','input-face','face-input','read-face','apply-face'])$(id).disabled=busy||animating||playing;
+    for(const id of ['solve','solve-parallel','parallel-enabled','demo','random-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn','input-face','face-input','read-face','apply-face'])$(id).disabled=busy||animating||playing;
     $('solve').textContent=busy?'正在计算…':'计算还原步骤';document.querySelectorAll('#centers select').forEach(el=>el.disabled=busy||animating||playing);
   }
   function renderAll(){renderPalette();renderNet();renderCube();updateSteps();save();}
@@ -149,20 +161,27 @@
     $('face-input-status').textContent=`${names[face]}面已应用 ${entered.length} 格。`;$('face-input-status').className='success';status('手动颜色已应用，可以继续填写其他面或计算还原步骤。');
   };
   $('apply-size').onclick=()=>{
-    let next;try{next=new CuboidModel(['x','y','z'].map(a=>Number($('size-'+a).value)));}catch(e){status(e.message,'error');return;}
+    let next;try{
+      const dims=['x','y','z'].map(a=>HugeCube.quantity($('size-'+a).value));
+      HugeCube.dimensions(dims);
+      if(HugeCubeApp.requires(dims)){invalidate();HugeCubeApp.open(dims,{centers:[...centers],prefs:{parallel:$('parallel-enabled').checked,speed:Number($('run-speed').value),animation:$('animation-enabled').checked}});return;}
+      next=new CuboidModel(dims);
+    }catch(e){if(HugeCubeApp.active)HugeCubeApp.showError(e.message);else status(e.message,'error');return;}
+    HugeCubeApp.close();
     model=next;history=[];scrambleCount=null;fromPattern(model.solved);invalidate();renderSize();renderAll();status(`已应用 ${model.dims.join(' × ')}，可以随机打乱或填写颜色。`);
   };
+  $('fill-max-size').onclick=()=>{if($('apply-size').disabled)return;for(const a of ['x','y','z'])$('size-'+a).value=HugeCube.MAX_DIMENSION;$('apply-size').onclick();};
   $('manual-axis').onchange=renderManual;
   function ensureWorker(){
     if(worker)return;
-    worker=new Worker('solver-worker.js?v=expand1');worker.onmessage=({data})=>{
+    worker=new Worker('solver-worker.js?v=parallel1');worker.onmessage=({data})=>{
       if(data.id!==job)return;if(data.kind==='progress'){status(data.message);return;}if(data.kind==='error'){workerError(data.message);return;}
       if(data.kind==='scramble'){
         fromPattern(data.state);history=data.moves;scrambleCount=data.moves.length;finishSolve();renderAll();status(`本次随机打乱 ${scrambleCount} 步。可以涂黑后计算还原步骤。`);return;
       }
-      moves=data.moves;cursor=0;hasPlan=true;planStart=solveStart;finishSolve();
+      moves=data.moves;steps=$('parallel-enabled').checked&&data.groups?data.groups:makeSteps(moves);cursor=0;hasPlan=true;planStart=solveStart;finishSolve();
       $('solver-method').textContent=`求解方式：${data.method||'已验证的解'}${data.baseline!==null&&data.baseline!==undefined?`，化简前 ${data.baseline} 步，结果 ${moves.length} 步`:''}。不要求最少步数。`;
-      status(`找到 ${moves.length} 步还原方案。可点击“运行”连续执行，或每次只走一步。`,'success');
+      status($('parallel-enabled').checked?`找到 ${steps.length} 组并行还原方案（原方案 ${moves.length} 步）。上一组、下一组和运行均按组执行。`:`找到 ${moves.length} 步还原方案。可点击“运行”连续执行，或每次只走一步。`,'success');
     };worker.onerror=()=>workerError('求解器加载失败，请刷新后重试。');
   }
   $('demo').onclick=()=>{
@@ -192,63 +211,66 @@
     if(location.protocol==='file:'){status('请通过本地启动器或网站打开，浏览器直接打开文件不支持后台求解。','error');return;}
     busy=true;renderPalette();renderNet();updateSteps();status('正在计算还原步骤…');const id=++job;
     try{
-      ensureWorker();timer=setTimeout(()=>workerError('计算超时，请重新核对输入后再试。'),180000);worker.postMessage({id,text:encoded(),dimensions:model.dims,history});
+      ensureWorker();timer=setTimeout(()=>workerError('计算超时，请重新核对输入后再试。'),180000);worker.postMessage({id,text:encoded(),dimensions:model.dims,history,parallel:$('parallel-enabled').checked});
     }catch{workerError('浏览器无法启动求解器，请通过现代浏览器打开网站。');}
   };
-  async function animateMove(move){
-    const text=encoded(),info=model.describe(move),animate=$('animation-enabled').checked;
+  $('solve-parallel').onclick=()=>{$('parallel-enabled').checked=true;save();return $('solve').onclick();};
+  async function animateStep(step){
+    const groupMoves=model.normalizeGroup(step),text=encoded(),infos=groupMoves.map(move=>model.describe(move)),animate=$('animation-enabled').checked;
+    if(!groupMoves.length)return;
     if(animate&&isLarge()){
-      const affected=NetMotion.planTransfers(model,move).faces;
+      const affected=NetMotion.planTransfers(model,groupMoves).faces;
       if(!affected.has(largeView.face))largeView.face=[...affected][0]||largeView.face;
     }
-    animating=true;renderPalette();renderNet();updateSteps();
+    animating=true;activeStep=step;renderPalette();renderNet();updateSteps();
     const duration=Math.min(650,800/Number($('run-speed').value));
-    let group=null;
+    const groups=[];
     if(!isLarge()){
-      group=document.createElement('div');group.className='turn-layer';cubeEl.append(group);const ai=model.axisIndex(info.axis);
-      for(const el of [...cubeEl.querySelectorAll('.tile')])if(model.cells[Number(el.dataset.cell)].p[ai]===info.coordinate)group.append(el);
+      const tiles=[...cubeEl.querySelectorAll('.tile')],ai=model.axisIndex(infos[0].axis);
+      for(const info of infos){const group=document.createElement('div');group.className='turn-layer';group.dataset.layer=info.layer;cubeEl.append(group);for(const el of tiles)if(model.cells[Number(el.dataset.cell)].p[ai]===info.coordinate)group.append(el);groups.push(group);}
     }
     if(animate){
-      netMotion.begin({net,model,move,stickers,colors,largeFace:isLarge()?largeView.face:null});
-      $('net-process-label').textContent=`展开图运行：${moveInfo(move).title}`;
+      netMotion.begin({net,model,move:groupMoves,stickers,colors,largeFace:isLarge()?largeView.face:null});
+      $('net-process-label').textContent=`展开图运行：${stepInfo(step).title}`;
       try{await new Promise((resolve,reject)=>{
-        let started=null;if(isLarge())activeTurn={axis:info.axis,coordinate:info.coordinate,angle:0};
+        let started=null;const turns=infos.map(info=>({axis:info.axis,coordinate:info.coordinate,angle:0}));if(isLarge())activeTurn=turns.length===1?turns[0]:turns;
         function frame(now){try{
           if(started===null)started=now;const t=Math.min(1,(now-started)/duration),eased=.5-.5*Math.cos(Math.PI*t);
-          if(activeTurn){activeTurn.angle=info.css*eased;applyView();}else group.style.transform=`rotate${info.axis}(${info.css*eased}deg)`;
+          if(activeTurn){turns.forEach((turn,i)=>turn.angle=infos[i].css*eased);applyView();}else groups.forEach((group,i)=>group.style.transform=`rotate${infos[i].axis}(${infos[i].css*eased}deg)`);
           netMotion.frame(eased);$('net-process-value').textContent=Math.round(t*100)+'%';$('net-process-fill').style.transform=`scaleX(${t})`;
           if(t<1)requestAnimationFrame(frame);else resolve();
         }catch(error){reject(error);}}
         requestAnimationFrame(frame);
       });}finally{netMotion.finish();activeTurn=null;}
     }
-    fromPattern(model.apply(text,move));appendHistory(move);animating=false;
+    fromPattern(model.applyGroup(text,groupMoves));for(const move of groupMoves)appendHistory(move);animating=false;activeStep=null;
   }
+  const animateMove=move=>animateStep([move]);
   function pauseRun(){playing=false;playEpoch++;renderPalette();if(!animating)renderNet();updateSteps();}
   function restoreRun(){if(!planStart)return;playing=false;playEpoch++;resetPending=false;stickers=[...planStart.stickers];history=planStart.history?planStart.history.map(m=>({...m})):null;cursor=0;renderAll();status('已重置本次运行，恢复计算前的魔方。');}
   async function stepForward(){
-    if(animating||busy||!hasPlan||cursor>=moves.length)return;
-    await animateMove(moves[cursor]);cursor++;
+    if(animating||busy||!hasPlan||cursor>=steps.length)return;
+    await animateStep(steps[cursor]);cursor++;
     if(resetPending){restoreRun();return;}
-    if(cursor===moves.length){playing=false;playEpoch++;status(stickers.includes('k')?'还原完成！所有非黑色格子都已归位，黑色格子忽略。':'还原完成！六个面都已同色。','success');}
+    if(cursor===steps.length){playing=false;playEpoch++;status(stickers.includes('k')?'还原完成！所有非黑色格子都已归位，黑色格子忽略。':'还原完成！六个面都已同色。','success');}
     renderAll();
   }
   $('next').onclick=()=>{if(!playing)return stepForward();};
-  $('prev').onclick=async()=>{if(animating||busy||playing||!hasPlan||cursor===0)return;await animateMove(model.inverse(moves[cursor-1]));cursor--;if(resetPending){restoreRun();return;}renderAll();status('已返回上一步，可以再次执行。');};
+  $('prev').onclick=async()=>{if(animating||busy||playing||!hasPlan||cursor===0)return;await animateStep(model.inverseGroup(steps[cursor-1]));cursor--;if(resetPending){restoreRun();return;}renderAll();status($('parallel-enabled').checked?'已返回上一组，可以再次执行。':'已返回上一步，可以再次执行。');};
   $('run').onclick=async()=>{
     if(playing){pauseRun();status('已暂停，当前转动完成后停止。');return;}
-    if(busy||animating||!hasPlan||cursor>=moves.length)return;
+    if(busy||animating||!hasPlan||cursor>=steps.length)return;
     playing=true;const epoch=++playEpoch;renderAll();status('正在连续运行，可随时暂停或调整速度。');
     let nextStepAt=performance.now();
-    while(playing&&epoch===playEpoch&&cursor<moves.length){
+    while(playing&&epoch===playEpoch&&cursor<steps.length){
       const now=performance.now(),interval=1000/Number($('run-speed').value);
       if(now<nextStepAt){await new Promise(resolve=>setTimeout(resolve,Math.min(16,nextStepAt-now)));continue;}
       if($('animation-enabled').checked){await stepForward();nextStepAt=now+interval;}
       else{
-        const count=Math.min(12,moves.length-cursor,Math.floor((now-nextStepAt)/interval)+1);let state=encoded();
-        for(let n=0;n<count;n++){const move=moves[cursor++];state=model.apply(state,move);appendHistory(move);}
+        const count=Math.min(12,steps.length-cursor,Math.floor((now-nextStepAt)/interval)+1);let state=encoded();
+        for(let n=0;n<count;n++){const group=steps[cursor++];state=model.applyGroup(state,group);for(const move of group)appendHistory(move);}
         fromPattern(state);nextStepAt+=count*interval;if(nextStepAt<now-250)nextStepAt=now-250;
-        if(cursor===moves.length){playing=false;playEpoch++;status(stickers.includes('k')?'还原完成！所有非黑色格子都已归位，黑色格子忽略。':'还原完成！六个面都已同色。','success');}
+        if(cursor===steps.length){playing=false;playEpoch++;status(stickers.includes('k')?'还原完成！所有非黑色格子都已归位，黑色格子忽略。':'还原完成！六个面都已同色。','success');}
         renderAll();await new Promise(resolve=>setTimeout(resolve,0));
       }
     }
@@ -256,13 +278,20 @@
   };
   $('reset-run').onclick=()=>{if(!planStart)return;pauseRun();if(animating){resetPending=true;status('当前转动完成后重置本次运行。');}else restoreRun();};
   $('net-run').onclick=()=>$('run').onclick();$('net-next').onclick=()=>$('next').onclick();$('net-reset').onclick=()=>$('reset-run').onclick();
-  $('run-speed').oninput=()=>{$('speed-value').textContent=$('run-speed').value+' 步/秒';$('run-speed-number').value=$('run-speed').value;save();};
+  $('run-speed').oninput=()=>{$('speed-value').textContent=$('run-speed').value+($('parallel-enabled').checked?' 组/秒':' 步/秒');$('run-speed-number').value=$('run-speed').value;save();};
   $('run-speed-number').onchange=()=>{
     const value=Number($('run-speed-number').value);
     if(!Number.isFinite(value)||value<.5||value>120){$('run-speed-number').value=$('run-speed').value;status('速度必须是 0.5 到 120 步/秒。','error');return;}
     $('run-speed').value=Math.round(value*2)/2;$('run-speed').dispatchEvent(new Event('input'));
   };
   $('animation-enabled').onchange=save;
+  $('parallel-enabled').onchange=()=>{
+    if(hasPlan){
+      if(cursor===0)steps=makeSteps(moves);
+      else{const done=makeSteps(steps.slice(0,cursor).flat()),remaining=makeSteps(steps.slice(cursor).flat());steps=[...done,...remaining];cursor=done.length;}
+      renderAll();status($('parallel-enabled').checked?'已开启并行还原，当前状态保留；后续上一步、下一步和运行均按组执行。':'已关闭并行还原，当前状态保留；每一步只转动一层。');
+    }else{updateSteps();save();}
+  };
   $('manual-apply').onclick=async()=>{
     try{model.classic?validatePattern(encoded(),Cube):model.validate(encoded());}catch(e){status(e.message,'error');return;}
     const axis=$('manual-axis').value,layer=Number($('manual-layer').value),turn=$('manual-turn').value;
@@ -274,5 +303,5 @@
   $('scene').onpointermove=e=>{if(!pointer||pointer.id!==e.pointerId)return;view.y+=(e.clientX-pointer.x)*.5;view.x-=(e.clientY-pointer.y)*.5;pointer={id:e.pointerId,x:e.clientX,y:e.clientY};applyView();};
   $('scene').onpointerup=$('scene').onpointercancel=()=>pointer=null;
   $('scene').addEventListener('wheel',e=>{e.preventDefault();view.scale=Math.max(.65,Math.min(1.3,view.scale-e.deltaY*.001));applyView();},{passive:false});
-  renderSize();renderCenters();renderAll();
+  renderSize();renderCenters();renderAll();HugeCubeApp.restoreSaved();
 })();

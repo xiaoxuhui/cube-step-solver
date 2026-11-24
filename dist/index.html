@@ -6,20 +6,22 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="设置 X、Y、Z 方向格数，随机魔方和随机涂黑，跟随每一步旋转还原非黑色格子。">
   <title>魔方一步步 · 多尺寸魔方</title>
-  <link rel="stylesheet" href="style.css?v=net1">
+  <link rel="stylesheet" href="style.css?v=huge1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=black1" defer></script>
-  <script src="cuboid.js?v=expand1" defer></script>
-  <script src="large-view.js?v=edge1" defer></script>
-  <script src="net-motion.js?v=net1" defer></script>
+  <script src="cuboid.js?v=parallel1" defer></script>
+  <script src="large-view.js?v=parallel1" defer></script>
+  <script src="net-motion.js?v=parallel1" defer></script>
   <script src="color-input.js?v=expand1" defer></script>
-  <script src="app.js?v=edge1" defer></script>
+  <script src="huge-model.js?v=huge1" defer></script>
+  <script src="huge-app.js?v=huge1" defer></script>
+  <script src="app.js?v=huge1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
   <main>
     <section class="intro"><div><p class="eyebrow">填入颜色 · 每次一步</p><h1>把混乱，转回整齐。</h1><p class="subtitle">记录你的魔方，跟着 X、Y、Z 轴旋转指引，一步步完成还原。</p></div><div class="random-actions"><button id="demo" class="secondary">试试随机魔方</button><button id="random-black" class="secondary">随机涂黑</button><label class="black-ratio">涂黑比例 <input id="black-percent" type="number" min="0" max="100" step="1" value="40" aria-label="随机涂黑百分比"> %</label></div></section>
-    <section class="size-panel" aria-label="魔方尺寸设置"><div class="size-fields"><label>X 数量<input id="size-x" type="number" min="1" max="200" step="1" value="3"></label><label>Y 数量<input id="size-y" type="number" min="1" max="200" step="1" value="3"></label><label>Z 数量<input id="size-z" type="number" min="1" max="200" step="1" value="3"></label><button id="apply-size" class="secondary">应用尺寸</button></div><p id="size-hint">X 为左右格数，Y 为上下格数，Z 为前后格数，每项 1–200。应用后重新开始。</p><p id="solver-scope">三阶支持任意合法填色求解。</p></section>
+    <section class="size-panel" aria-label="魔方尺寸设置"><div class="size-fields"><label>X 数量<input id="size-x" type="number" min="1" max="4503599627370495" step="1" value="3"></label><label>Y 数量<input id="size-y" type="number" min="1" max="4503599627370495" step="1" value="3"></label><label>Z 数量<input id="size-z" type="number" min="1" max="4503599627370495" step="1" value="3"></label><button id="apply-size" class="secondary">应用尺寸</button></div><p id="size-hint">X 为左右格数，Y 为上下格数，Z 为前后格数，每项最大 4,503,599,627,370,495。超过 200 自动使用按需计算，保留精确尺寸和转动；整体抽样预览，局部精确填色。应用后重新开始。</p><button id="fill-max-size" class="text-button">使用最大尺寸</button><p id="solver-scope">三阶支持任意合法填色求解。</p></section>
     <p id="scramble-info" class="hint" role="status">每次随机生成时，转法和打乱步数都会随机。</p>
     <div class="workspace">
       <section class="panel input-panel" aria-labelledby="input-title">
@@ -33,7 +35,9 @@
         <div class="net-scroll"><div id="net" class="net" aria-label="魔方六面展开图"></div></div>
         <p class="orientation">展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。</p>
         <details><summary>怎么对照实物填色？</summary><p>先选定上面 U 和前面 F，并保持这两个方向。左右面像书页一样向外展开，背面接在右面外侧。上面的下边、下面的上边都与前面相接。可拖动右侧模型核对各面的方向。</p><p>目标配色默认上白、下黄、前绿、后蓝、左橙、右红。可在下面调整。三阶中心格固定；其他尺寸以目标配色判断还原，所有方格均可填写。</p><div id="centers" class="centers"></div></details>
-        <button id="solve" class="primary wide">计算还原步骤</button>
+        <label class="animation-control parallel-option"><input id="parallel-enabled" type="checkbox">并行转动／还原</label>
+        <p class="run-help">连续同轴的不同层可同时转动，不跨越其他轴。切换模式保留当前状态；开启后上一步、下一步和运行均按组执行。</p>
+        <div class="solve-actions"><button id="solve" class="primary">计算还原步骤</button><button id="solve-parallel" class="secondary">计算并行还原</button></div>
         <p id="status" class="status" role="status" aria-live="polite">可以填写你的魔方，或先试试随机示例。</p>
       </section>
       <section class="panel play-panel" aria-labelledby="view-title">
@@ -45,11 +49,13 @@
         <div class="step-card">
           <div class="step-top"><span id="step-label">等待填色</span><span id="step-count">0 / 0</span></div>
           <div class="instruction"><span id="move-token" class="move-token">—</span><div><h3 id="instruction-title">准备好你的魔方</h3><p id="instruction-detail">填写六面颜色后，点击“计算还原步骤”。</p></div></div>
+          <p id="parallel-count" class="run-help"></p>
+          <details id="parallel-group-details" class="parallel-group-details" hidden><summary>查看本组各层转动</summary><p id="parallel-layer-list"></p></details>
           <div class="progress" role="progressbar" aria-label="还原进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div>
           <div class="step-buttons"><button id="prev" class="secondary" disabled>上一步</button><button id="next" class="primary" disabled>执行下一步</button></div>
           <div class="run-buttons"><button id="run" class="primary" disabled>运行</button><button id="reset-run" class="secondary" disabled>重置本次运行</button></div>
           <label class="speed-control">运行速度 <input id="run-speed" type="range" min="0.5" max="120" step="0.5" value="4" aria-label="运行速度，每秒步数"><output id="speed-value">4 步/秒</output></label>
-          <label class="speed-number-control">手动速度 <input id="run-speed-number" type="number" min="0.5" max="120" step="0.5" value="4" aria-label="手动运行速度">步/秒</label>
+          <label class="speed-number-control">手动速度 <input id="run-speed-number" type="number" min="0.5" max="120" step="0.5" value="4" aria-label="手动运行速度"><span id="speed-number-unit">步/秒</span></label>
           <label class="animation-control"><input id="animation-enabled" type="checkbox" checked>显示转动动画</label>
           <p class="run-help">重置会恢复到本次计算前的魔方；暂停后当前转动完成即停止。关闭动画可加快高速运行。</p>
           <p id="solver-method" class="run-help" role="status"></p>

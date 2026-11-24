@@ -6,11 +6,11 @@
   }
   function intervals(length,step,start,delta,rotation){
     const cuts=new Set([0,length]);for(let i=step;i<length;i+=step)cuts.add(i);
-    if(rotation&&delta){const i=(rotation.coordinate-start)/delta;if(Number.isInteger(i)&&i>=0&&i<length){cuts.add(i);cuts.add(i+1);}}
+    if(rotation&&delta)for(const turn of Array.isArray(rotation)?rotation:[rotation]){const i=(turn.coordinate-start)/delta;if(Number.isInteger(i)&&i>=0&&i<length){cuts.add(i);cuts.add(i+1);}}
     const points=[...cuts].sort((a,b)=>a-b);return points.slice(0,-1).map((n,i)=>[n,points[i+1]]);
   }
   function buildPatches(model,rotation=null,maxSegments=24,gap=.97){
-    const patches=[],ai=rotation?model.axisIndex(rotation.axis):-1;
+    const turns=rotation?(Array.isArray(rotation)?rotation:[rotation]):[],patches=[],ai=turns.length?model.axisIndex(turns[0].axis):-1;
     for(const face of ['U','R','F','D','L','B']){
       const [rows,cols]=model.shapes[face],firstCell=model.cells[model.offsets[face]],normal=firstCell.n,[u,v]=basis[face];
       const rowRanges=intervals(rows,Math.ceil(rows/maxSegments),firstCell.p[ai],2*v[ai],rotation),colRanges=intervals(cols,Math.ceil(cols/maxSegments),firstCell.p[ai],2*u[ai],rotation);
@@ -18,9 +18,9 @@
         const first=model.cells[model.offsets[face]+r*cols+c],last=model.cells[model.offsets[face]+(re-1)*cols+ce-1],position=first.p.map((p,i)=>(p+last.p[i])/2);
         const center=position.map((p,i)=>p+normal[i]),points=[];
         for(const [a,b]of [[-1,-1],[1,-1],[1,1],[-1,1]]){const p=center.map((x,i)=>x+a*u[i]*(ce-c)*gap+b*v[i]*(re-r)*gap);p[1]*=-1;points.push(p);}
-        const moving=!!rotation&&position[ai]===rotation.coordinate;
-        const inLayer=(row,col)=>row>=0&&row<rows&&col>=0&&col<cols&&model.cells[model.offsets[face]+row*cols+col].p[ai]===rotation?.coordinate;
-        patches.push({points,face,range:{row:r,col:c,rows:re-r,cols:ce-c},normal:[normal[0],-normal[1],normal[2]],moving,edges:moving?[!inLayer(r-1,c),!inLayer(r,ce),!inLayer(re,c),!inLayer(r,c-1)]:[],index:model.offsets[face]+Math.floor((r+re-1)/2)*cols+Math.floor((c+ce-1)/2)});
+        const rotationIndex=turns.findIndex(turn=>position[ai]===turn.coordinate),moving=rotationIndex>=0,turn=turns[rotationIndex];
+        const inLayer=(row,col)=>row>=0&&row<rows&&col>=0&&col<cols&&model.cells[model.offsets[face]+row*cols+col].p[ai]===turn?.coordinate;
+        patches.push({points,face,range:{row:r,col:c,rows:re-r,cols:ce-c},normal:[normal[0],-normal[1],normal[2]],moving,rotationIndex,edges:moving?[!inLayer(r-1,c),!inLayer(r,ce),!inLayer(re,c),!inLayer(r,c-1)]:[],index:model.offsets[face]+Math.floor((r+re-1)/2)*cols+Math.floor((c+ce-1)/2)});
       }
     }
     return patches;
@@ -68,7 +68,8 @@
       const ctx=canvas.getContext('2d'),scale=90/Math.max(...model.dims)*view.scale;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
       const [ax,ay,az]=[view.x,view.y,view.z].map(x=>x*Math.PI/180),cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
       function transform(v){let [x,y,z]=v;[x,y]=[x*cz-y*sz,x*sz+y*cz];[x,z]=[x*cy+z*sy,-x*sy+z*cy];return [x,y*cx-z*sx,y*sx+z*cx];}
-      const patchKey=rotation?rotation.axis+':'+rotation.coordinate:'idle';
+      const turns=rotation?(Array.isArray(rotation)?rotation:[rotation]):[];
+      const patchKey=turns.length?turns.map(turn=>turn.axis+':'+turn.coordinate).join('|'):'idle';
       if(this.patchModel!==model||this.patchKey!==patchKey){this.patchModel=model;this.patchKey=patchKey;this.patches=buildPatches(model,rotation,12,1);}
       const detailUnit=Math.min(8,2**Math.floor(Math.log2(Math.max(1,400*dpr*view.scale/Math.max(...model.dims)))));
       const gridOpacity=Math.round(Math.max(0,Math.min(1,(180*view.scale*dpr/Math.max(...model.dims)-2)/3))*100)/100;
@@ -88,9 +89,9 @@
       };
       const polygons=[];
       for(const patch of this.patches){
-        const normal=rotation&&patch.moving?rotate(patch.normal,rotation.axis,rotation.angle):patch.normal;
+        const turn=turns[patch.rotationIndex],normal=turn&&patch.moving?rotate(patch.normal,turn.axis,turn.angle):patch.normal;
         if(transform(normal)[2]<=1e-7)continue;
-        const points=patch.points.map(p=>transform((rotation&&patch.moving?rotate(p,rotation.axis,rotation.angle):p).map(x=>x*scale)));
+        const points=patch.points.map(p=>transform((turn&&patch.moving?rotate(p,turn.axis,turn.angle):p).map(x=>x*scale)));
         polygons.push({points,patch,depth:points.reduce((s,p)=>s+p[2],0)/4});
       }
       polygons.sort((a,b)=>a.depth-b.depth);

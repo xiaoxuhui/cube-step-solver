@@ -1,8 +1,8 @@
 (function(root){
   function planTransfers(model,move){
-    const m=model.normalize(move),p=model.sparsePermutation(m),transfers=[];
-    for(let i=0;i<p.from.length;i++)transfers.push({from:p.from[i],to:p.to[i]});
-    return {move:m,transfers,faces:new Set(transfers.flatMap(t=>[model.cells[t.from].face,model.cells[t.to].face]))};
+    const moves=model.normalizeGroup(move),transfers=[];
+    for(const m of moves){const p=model.sparsePermutation(m);for(let i=0;i<p.from.length;i++)transfers.push({from:p.from[i],to:p.to[i],move:m});}
+    return {move:moves[0],moves,transfers,faces:new Set(transfers.flatMap(t=>[model.cells[t.from].face,model.cells[t.to].face]))};
   }
   function pointAt(path,t){
     if(t<=0)return path.start;if(t>=1)return path.end;
@@ -18,7 +18,7 @@
         s.face=largeFace;s.canvas=net.querySelector('#large-face-canvas');if(!s.canvas)return;
         s.base=document.createElement('canvas');s.base.width=s.canvas.width;s.base.height=s.canvas.height;s.base.getContext('2d').drawImage(s.canvas,0,0);
         s.ctx=s.canvas.getContext('2d');s.visible=plan.transfers.filter(t=>model.cells[t.to].face===largeFace);
-        const normal=model.cells[model.offsets[largeFace]].n,ai=model.axisIndex(plan.move.axis);s.faceTurn=normal[ai]!==0&&s.visible.length>0;s.angle=plan.move.turns*normal[ai]*Math.PI/2;
+        const normal=model.cells[model.offsets[largeFace]].n,ai=model.axisIndex(plan.move.axis);s.faceTurn=normal[ai]!==0&&s.visible.length>0;s.angle=(s.visible[0]?.move.turns||0)*normal[ai]*Math.PI/2;
         return;
       }
       const rect=net.getBoundingClientRect(),buttons=[...net.querySelectorAll('.sticker')],positions=buttons.map(el=>{const r=el.getBoundingClientRect();return {x:r.left-rect.left+r.width/2,y:r.top-rect.top+r.height/2,w:r.width,h:r.height};});
@@ -28,7 +28,7 @@
         const start=positions[transfer.from],end=positions[transfer.to],from=model.cells[transfer.from],to=model.cells[transfer.to],path={...transfer,start,end};
         if(from.face===to.face){
           const grid=buttons[transfer.from].parentElement.getBoundingClientRect(),normal=from.n[model.axisIndex(plan.move.axis)];
-          path.arc={cx:grid.left-rect.left+grid.width/2,cy:grid.top-rect.top+grid.height/2,angle:plan.move.turns*normal*Math.PI/2};
+          path.arc={cx:grid.left-rect.left+grid.width/2,cy:grid.top-rect.top+grid.height/2,angle:transfer.move.turns*normal*Math.PI/2};
         }else{
           const dx=end.x-start.x,dy=end.y-start.y,distance=Math.hypot(dx,dy)||1,bend=Math.min(35,distance*.15);
           path.control={x:Math.max(0,Math.min(rect.width,(start.x+end.x)/2-dy/distance*bend)),y:Math.max(0,Math.min(rect.height,(start.y+end.y)/2+dx/distance*bend))};
@@ -45,10 +45,10 @@
           ctx.fillStyle='#090c12';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(s.angle*t);ctx.drawImage(s.base,-canvas.width/2,-canvas.height/2);ctx.restore();
           ctx.strokeStyle='#b4a0ff';ctx.lineWidth=2;ctx.strokeRect(1,1,canvas.width-2,canvas.height-2);
         }else for(const transfer of s.visible){
-          const cell=s.model.cells[transfer.to],x=cell.col*12+1,y=cell.row*12+1;
+          const cell=s.model.cells[transfer.to],x=cell.col*12+1,y=cell.row*12+1,direction=transfer.move.turns<0?-1:1;
           ctx.save();ctx.beginPath();ctx.rect(x,y,11,11);ctx.clip();ctx.fillStyle='#090c12';ctx.fillRect(x,y,11,11);
-          ctx.fillStyle=colors[stickers[transfer.to]]?.hex||'#323d50';ctx.globalAlpha=1-t;ctx.fillRect(x,y+t*12,11,11);
-          ctx.fillStyle=colors[stickers[transfer.from]]?.hex||'#323d50';ctx.globalAlpha=t;ctx.fillRect(x,y-(1-t)*12,11,11);ctx.restore();
+          ctx.fillStyle=colors[stickers[transfer.to]]?.hex||'#323d50';ctx.globalAlpha=1-t;ctx.fillRect(x,y+direction*t*12,11,11);
+          ctx.fillStyle=colors[stickers[transfer.from]]?.hex||'#323d50';ctx.globalAlpha=t;ctx.fillRect(x,y-direction*(1-t)*12,11,11);ctx.restore();
           ctx.strokeStyle='#b4a0ff';ctx.lineWidth=.8;ctx.strokeRect(x,y,11,11);
         }
         return;
