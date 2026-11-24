@@ -18,7 +18,7 @@
     $('prev').disabled=!plan||!cursor||locked;$('next').disabled=!plan||complete||locked;$('run').disabled=!plan||complete||animating&&!playing;$('run').textContent=playing?'暂停':'运行';$('reset').disabled=!start;
     $('progress').style.width=(plan?(plan.length?cursor/plan.length*100:100):0)+'%';$('speed-unit').textContent=unit+'/秒';
     for(const id of ['shuffle','solve','solve-parallel','parallel','manual-apply','manual-axis','manual-layer','manual-turn','paint','paint-block','apply-text','clear','mask-empty'])$(id).disabled=locked;
-    for(const id of ['demo','random-black','black-percent','apply-size','size-x','size-y','size-z'])document.getElementById(id).disabled=locked;
+    for(const id of ['demo','random-black','all-black','black-percent','apply-size','size-x','size-y','size-z'])document.getElementById(id).disabled=locked;
     for(const b of root.querySelectorAll('.huge-palette button,.huge-local-grid button'))b.disabled=locked;
     $('record').textContent=`按需计算 · 保存 ${fmt(model.turns.length)} 条层转动、${fmt(model.edits.size)} 个独立填色格子。`;
   }
@@ -57,6 +57,7 @@
   function manualAxis(){const axis=$('manual-axis').value,a=axes.indexOf(axis);$('manual-layer').max=model.dims[a];$('manual-layer').value=Math.min(Number($('manual-layer').value)||1,model.dims[a]);for(const option of $('manual-turn').options)option.disabled=option.value!=='2'&&!model.square(axis);if(!model.square(axis))$('manual-turn').value='2';$('manual-hint').textContent=`从${{X:'左',Y:'下',Z:'后'}[axis]}侧数层号，正对${{X:'右',Y:'上',Z:'前'}[axis]}侧观察。${model.square(axis)?'允许 90° 和 180°。':'截面不是正方形，只能转 180°。'}`;}
   function generate(){try{discard();scrambleCount=model.scramble();render();note(`本次随机打乱 ${fmt(scrambleCount)} 步。记录完整，可计算还原。整体图为抽样预览，未抽样到的层也有精确记录。`);}catch(e){note(e.message,true);}}
   function randomBlack(){try{const field=document.getElementById('black-percent');if(field.value.trim()==='')throw Error('请输入涂黑比例。');model.black(Number(field.value));discard();render();note('已按指定概率随机涂黑。黑格随转动移动，不参与还原；超大尺寸不逐个统计实际黑格数。');}catch(e){note(e.message,true);}}
+  function allBlack(){model.fillBlack();discard();render();note('所有格子已全部涂黑，无需转动。可按行列再填入需要还原的颜色。');}
   function solve(parallel=false){try{if(parallel){prefs.parallel=true;$('parallel').checked=true;}const moves=model.solution();start=model.snapshot();plan=schedule(moves);cursor=0;update();save();note(`已用逆置换验证 ${fmt(plan.length)} ${prefs.parallel?'组':'步'}还原记录。超大尺寸使用已知记录求解，不保证任意自填颜色都能求解。`);}catch(e){note(e.message,true);}}
   async function turn(group){
     if(!group.length)return;animating=true;update();
@@ -94,7 +95,7 @@
     for(const b of root.querySelectorAll('[data-huge-face]'))b.onclick=()=>{face=b.dataset.hugeFace;row=col=0;localGrid();update();save();};
     let pointer=null;$('canvas').onpointerdown=e=>{pointer={x:e.clientX,y:e.clientY};$('canvas').setPointerCapture(e.pointerId);};$('canvas').onpointermove=e=>{if(pointer){view.y+=(e.clientX-pointer.x)*.5;view.x-=(e.clientY-pointer.y)*.5;pointer={x:e.clientX,y:e.clientY};if(!animating)draw();}};$('canvas').onpointerup=$('canvas').onpointercancel=()=>pointer=null;
     window.addEventListener('resize',()=>{if(model&&!root.hidden&&!animating)draw();});
-    for(const id of ['demo','random-black'])document.getElementById(id).addEventListener('click',e=>{if(!model)return;e.stopImmediatePropagation();e.preventDefault();if(!animating&&!playing)(id==='demo'?generate:randomBlack)();},true);
+    for(const id of ['demo','random-black','all-black'])document.getElementById(id).addEventListener('click',e=>{if(!model)return;e.stopImmediatePropagation();e.preventDefault();if(!animating&&!playing)({'demo':generate,'random-black':randomBlack,'all-black':allBlack}[id])();},true);
   }
   function open(dims,options={}){
     dimensions(dims);if(animating||playing)return;mount();discard();model=options.state?HugeCubeModel.restore(options.state):new HugeCubeModel(dims);centers=options.centers||centers;

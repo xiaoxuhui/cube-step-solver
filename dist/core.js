@@ -22,7 +22,7 @@
   function isPatternSolved(text) { return text.length===54&&[...text].every((c,i)=>c==='*'||c===faces[Math.floor(i/9)]); }
   function validatePattern(text,Cube) {
     if(text.length!==54||/[^URFDLB*]/.test(text))throw Error('还有未填写的方格，请补齐六个面；不需要还原的格子可涂黑。');
-    if(faces.some((f,i)=>text[i*9+4]!==f))throw Error('中心颜色不匹配，请检查六面的方向。');
+    if(faces.some((f,i)=>text[i*9+4]!==f&&text[i*9+4]!=='*'))throw Error('中心颜色不匹配，请检查六面的方向。');
     if(!text.includes('*'))return validate(text,Cube);
     for(const f of faces)if([...text].filter(c=>c===f).length>9)throw Error('非黑色的每种颜色不能超过 9 格；黑色格数不限。');
     return null;

@@ -1,4 +1,4 @@
-importScripts('vendor/cube.js', 'vendor/solve.js', 'core.js?v=black1');
+importScripts('vendor/cube.js', 'vendor/solve.js', 'core.js?v=allblack1');
 importScripts('cuboid.js?v=parallel1');
 let initialized=false;
 self.onmessage=event=>{

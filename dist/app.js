@@ -23,7 +23,7 @@
   try{
     const v=JSON.parse(localStorage.getItem('cube-step-v1'));
     if(v){const candidate=new CuboidModel(v.dimensions||[3,3,3]);
-      if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])&&candidate.cells.every((c,i)=>!c.locked||v.stickers[i]===v.centers[faces.indexOf(c.face)])){
+      if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])&&candidate.cells.every((c,i)=>!c.locked||v.stickers[i]==='k'||v.stickers[i]===v.centers[faces.indexOf(c.face)])){
         model=candidate;centers=v.centers;stickers=v.stickers;history=null;
         if(Array.isArray(v.history)&&model.knownSolution(encoded(),v.history)!==null)history=v.history;
         if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=10000)scrambleCount=v.scrambleCount;
@@ -72,7 +72,7 @@
         const i=model.offsets[face]+j,g=model.cells[i],c=stickers[i],b=document.createElement('button');
         b.className='sticker'+(g.locked?' center':'');b.style.background=colors[c]?.hex||'#323d50';b.dataset.cell=i;
         b.setAttribute('aria-label',`${names[face]}面 ${g.row+1}行 ${g.col+1}列，${colors[c]?.name||'未填'}${g.locked?'，中心固定':''}`);
-        b.disabled=g.locked||busy||animating||playing;if(g.locked)b.textContent=face;
+        b.disabled=g.locked||busy||animating||playing;if(g.locked){b.textContent=face;if(c==='k')b.style.color='#c7d0e5';}
         b.onclick=()=>{stickers[i]=selected;if(selected!=='k')retainHistory();invalidate();status('填色已更新，完成后可以重新计算。');renderAll();};grid.append(b);
       }
       wrap.append(title,grid);net.append(wrap);
@@ -117,7 +117,7 @@
     $('net-run').textContent=$('run').textContent;$('net-run').disabled=$('run').disabled;$('net-next').textContent=parallel?'下一组':'下一步';$('net-next').disabled=$('next').disabled;$('net-reset').disabled=$('reset-run').disabled;
     $('speed-value').textContent=$('run-speed').value+' '+unit+'/秒';$('speed-number-unit').textContent=unit+'/秒';
     if(document.activeElement!==$('run-speed-number'))$('run-speed-number').value=$('run-speed').value;
-    for(const id of ['solve','solve-parallel','parallel-enabled','demo','random-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn','input-face','face-input','read-face','apply-face'])$(id).disabled=busy||animating||playing;
+    for(const id of ['solve','solve-parallel','parallel-enabled','demo','random-black','all-black','black-percent','clear','mask-empty','apply-size','size-x','size-y','size-z','manual-apply','manual-axis','manual-layer','manual-turn','input-face','face-input','read-face','apply-face'])$(id).disabled=busy||animating||playing;
     $('solve').textContent=busy?'正在计算…':'计算还原步骤';document.querySelectorAll('#centers select').forEach(el=>el.disabled=busy||animating||playing);
   }
   function renderAll(){renderPalette();renderNet();renderCube();updateSteps();save();}
@@ -154,7 +154,7 @@
     const face=$('input-face').value,[rows,cols]=model.shapes[face],offset=model.offsets[face];
     let entered;try{
       entered=ColorInput.parseFace($('face-input').value,rows*cols);
-      if(model.classic&&entered[4]!==faceColor(face))throw Error(`${names[face]}面中心必须是${colors[faceColor(face)].name}色。`);
+      if(model.classic&&entered[4]!==faceColor(face)&&entered[4]!=='k')throw Error(`${names[face]}面中心必须是${colors[faceColor(face)].name}色或黑色忽略。`);
     }catch(error){$('face-input-status').textContent=error.message;$('face-input-status').className='error';return;}
     for(let j=0;j<entered.length;j++)stickers[offset+j]=entered[j];
     retainHistory();invalidate();faceDraftDirty=false;if(isLarge())largeView.face=face;renderAll();
@@ -174,7 +174,7 @@
   $('manual-axis').onchange=renderManual;
   function ensureWorker(){
     if(worker)return;
-    worker=new Worker('solver-worker.js?v=parallel1');worker.onmessage=({data})=>{
+    worker=new Worker('solver-worker.js?v=allblack1');worker.onmessage=({data})=>{
       if(data.id!==job)return;if(data.kind==='progress'){status(data.message);return;}if(data.kind==='error'){workerError(data.message);return;}
       if(data.kind==='scramble'){
         fromPattern(data.state);history=data.moves;scrambleCount=data.moves.length;finishSolve();renderAll();status(`本次随机打乱 ${scrambleCount} 步。可以涂黑后计算还原步骤。`);return;
@@ -201,6 +201,7 @@
     invalidate();renderAll();status(`随机选取 ${count} 格，本次新增 ${added} 个黑格；其余颜色保留。`);
   };
   $('black-percent').onchange=save;
+  $('all-black').onclick=()=>{stickers.fill('k');invalidate();renderAll();status('所有格子已涂黑，包含三阶中心格。黑色全部忽略，无需转动；可再填入需要还原的颜色。','success');};
   $('clear').onclick=()=>{stickers=model.cells.map(g=>g.locked?faceColor(g.face):null);history=null;scrambleCount=null;invalidate();renderAll();status(model.classic?'已保留六个中心。请选择画笔，填写其他 48 格。':'已清空方格。可填写颜色，或将未填格涂黑。');};
   $('mask-empty').onclick=()=>{stickers=stickers.map(c=>c===null?'k':c);invalidate();renderAll();status('未填格已涂黑；计算时只要求非黑色格子归位。');};
   function finishSolve(){clearTimeout(timer);timer=null;busy=false;renderPalette();renderNet();updateSteps();}

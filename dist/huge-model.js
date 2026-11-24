@@ -94,6 +94,7 @@
       if(percent)this.masks.push({percent,seed:seed>>>0});this.revision++;
     }
     maskEmpty(){this.baseFaces=this.baseFaces.map(c=>c==='?'?'*':c);for(const edit of this.edits.values())if(edit.color==='?')edit.color='*';this.revision++;}
+    fillBlack(){this.baseFaces=faces.map(()=>'*');this.edits.clear();this.masks=[];this.revision++;}
     reset(clear=false){this.turns=[];this.edits.clear();this.masks=[];this.baseFaces=faces.map(f=>clear?'?':f);this.compiled=null;this.revision++;}
     randomLength(random=Math.random){const n=Math.max(...this.dims),lo=Math.min(5000,Math.max(12,n*6)),hi=Math.min(10000,Math.max(24,n*12));return lo+Math.floor(random()*(hi-lo+1));}
     scramble(length=this.randomLength(),random=Math.random){
@@ -107,6 +108,7 @@
       for(const edit of this.edits.values()){const color=this.baseColor(edit.face,edit.row,edit.col);if(color!=='*'&&color!==edit.face)return false;}return true;
     }
     solution(){
+      if(this.baseFaces.every(c=>c==='*')&&!this.edits.size)return [];
       if(!this.baselineSolved())throw Error('这些手动颜色不能通过已知记录验证还原。超大尺寸支持还原本工具随机生成或手动转动的状态；涂黑忽略和与原目标一致的填色也支持。');
       const inverse=[...this.turns].reverse().map(m=>({...m,turns:Math.abs(m.turns)===2?2:-m.turns}));
       // Algebraic verification: composing the exact inverse must cancel every axis block.
