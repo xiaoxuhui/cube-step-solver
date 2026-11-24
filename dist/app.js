@@ -126,7 +126,7 @@
   function renderSize(){
     model.dims.forEach((n,i)=>$('size-'+['x','y','z'][i]).value=n);$('size-tag').textContent=model.dims.join(' × ');
     $('solver-scope').textContent=model.classic||model.pocket?'二阶、三阶支持任意合法填色求解。':'此尺寸使用置换搜索和化简求解；复杂随机状态会使用打乱记录构造可验证的解。复杂自填状态可能超出搜索范围。';
-    $('preview-hint').textContent=isLarge()?'拖动查看各面 · 三维预览抽样显示，填色和求解使用全部格子':'拖动查看各面 · 滚轮缩放';
+    $('preview-hint').textContent=isLarge()?'拖动查看各面 · 按真实格数绘制，缩小时平滑显示':'拖动查看各面 · 滚轮缩放';
     document.querySelector('.orientation').textContent=isLarge()?'大尺寸按单面填写。先选一个面，行从上向下、列从左向右；可缩放、滚动，或按行列精确填色。':'展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。';
     $('paint-hint').textContent='先选颜色，再点方格，也可以展开“手动填写颜色”直接输入。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。'+(model.classic?'中心格固定。':'所有方格均可填写，目标配色见下方。');renderManual();readFace();
   }

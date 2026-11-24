@@ -9,7 +9,7 @@
     if(rotation&&delta){const i=(rotation.coordinate-start)/delta;if(Number.isInteger(i)&&i>=0&&i<length){cuts.add(i);cuts.add(i+1);}}
     const points=[...cuts].sort((a,b)=>a-b);return points.slice(0,-1).map((n,i)=>[n,points[i+1]]);
   }
-  function buildPatches(model,rotation=null,maxSegments=24){
+  function buildPatches(model,rotation=null,maxSegments=24,gap=.97){
     const patches=[],ai=rotation?model.axisIndex(rotation.axis):-1;
     for(const face of ['U','R','F','D','L','B']){
       const [rows,cols]=model.shapes[face],firstCell=model.cells[model.offsets[face]],normal=firstCell.n,[u,v]=basis[face];
@@ -17,11 +17,27 @@
       for(const [r,re]of rowRanges)for(const [c,ce]of colRanges){
         const first=model.cells[model.offsets[face]+r*cols+c],last=model.cells[model.offsets[face]+(re-1)*cols+ce-1],position=first.p.map((p,i)=>(p+last.p[i])/2);
         const center=position.map((p,i)=>p+normal[i]),points=[];
-        for(const [a,b]of [[-1,-1],[1,-1],[1,1],[-1,1]]){const p=center.map((x,i)=>x+a*u[i]*(ce-c)*.97+b*v[i]*(re-r)*.97);p[1]*=-1;points.push(p);}
-        patches.push({points,normal:[normal[0],-normal[1],normal[2]],moving:!!rotation&&position[ai]===rotation.coordinate,index:model.offsets[face]+Math.floor((r+re-1)/2)*cols+Math.floor((c+ce-1)/2)});
+        for(const [a,b]of [[-1,-1],[1,-1],[1,1],[-1,1]]){const p=center.map((x,i)=>x+a*u[i]*(ce-c)*gap+b*v[i]*(re-r)*gap);p[1]*=-1;points.push(p);}
+        const moving=!!rotation&&position[ai]===rotation.coordinate;
+        const inLayer=(row,col)=>row>=0&&row<rows&&col>=0&&col<cols&&model.cells[model.offsets[face]+row*cols+col].p[ai]===rotation?.coordinate;
+        patches.push({points,face,range:{row:r,col:c,rows:re-r,cols:ce-c},normal:[normal[0],-normal[1],normal[2]],moving,edges:moving?[!inLayer(r-1,c),!inLayer(r,ce),!inLayer(re,c),!inLayer(r,c-1)]:[],index:model.offsets[face]+Math.floor((r+re-1)/2)*cols+Math.floor((c+ce-1)/2)});
       }
     }
     return patches;
+  }
+  function triangleTransform(source,target){
+    const [a,b,c]=source,[p,q,r]=target,du=b[0]-a[0],dv=b[1]-a[1],eu=c[0]-a[0],ev=c[1]-a[1],det=du*ev-eu*dv;
+    if(Math.abs(det)<1e-10)return null;
+    const m00=((q[0]-p[0])*ev-(r[0]-p[0])*dv)/det,m01=(du*(r[0]-p[0])-eu*(q[0]-p[0]))/det;
+    const m10=((q[1]-p[1])*ev-(r[1]-p[1])*dv)/det,m11=(du*(r[1]-p[1])-eu*(q[1]-p[1]))/det;
+    return [m00,m10,m01,m11,p[0]-m00*a[0]-m01*a[1],p[1]-m10*a[0]-m11*a[1]];
+  }
+  function drawTriangle(ctx,texture,source,target){
+    const matrix=triangleTransform(source,target);if(!matrix)return;
+    const cx=target.reduce((s,p)=>s+p[0],0)/3,cy=target.reduce((s,p)=>s+p[1],0)/3;
+    // Slightly overlap mesh triangles so antialiased clips cannot leave seams.
+    const clip=target.map(p=>{const dx=p[0]-cx,dy=p[1]-cy,length=Math.hypot(dx,dy)||1;return [p[0]+dx/length*.45,p[1]+dy/length*.45];});
+    ctx.save();ctx.beginPath();clip.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.clip();ctx.transform(...matrix);ctx.drawImage(texture,0,0);ctx.restore();
   }
   class LargeCubeView {
     constructor(){this.face='F';this.zoom=1;this.scroll={left:0,top:0};}
@@ -47,25 +63,46 @@
       zoom.oninput=()=>{this.zoom=Number(zoom.value);styleSize();};viewport.append(canvas);net.append(tabs,tools,zoomLabel,viewport);viewport.scrollLeft=this.scroll.left;viewport.scrollTop=this.scroll.top;
     }
     renderScene({scene,cube,model,stickers,colors,view,rotation=null}){
-      cube.hidden=true;let canvas=scene.querySelector('#large-preview');if(!canvas){canvas=document.createElement('canvas');canvas.id='large-preview';canvas.setAttribute('aria-label','大尺寸魔方抽样三维预览');scene.append(canvas);}
-      const width=scene.clientWidth||400,height=scene.clientHeight||335;canvas.width=width;canvas.height=height;canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
-      const ctx=canvas.getContext('2d'),scale=90/Math.max(...model.dims)*view.scale;
+      cube.hidden=true;let canvas=scene.querySelector('#large-preview');if(!canvas){canvas=document.createElement('canvas');canvas.id='large-preview';canvas.setAttribute('aria-label','大尺寸魔方三维预览，按真实颜色网格绘制');scene.append(canvas);}
+      const width=scene.clientWidth||400,height=scene.clientHeight||335,dpr=Math.min(2,root.devicePixelRatio||1);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+      const ctx=canvas.getContext('2d'),scale=90/Math.max(...model.dims)*view.scale;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
       const [ax,ay,az]=[view.x,view.y,view.z].map(x=>x*Math.PI/180),cx=Math.cos(ax),sx=Math.sin(ax),cy=Math.cos(ay),sy=Math.sin(ay),cz=Math.cos(az),sz=Math.sin(az);
       function transform(v){let [x,y,z]=v;[x,y]=[x*cz-y*sz,x*sz+y*cz];[x,z]=[x*cy+z*sy,-x*sy+z*cy];return [x,y*cx-z*sx,y*sx+z*cx];}
       const patchKey=rotation?rotation.axis+':'+rotation.coordinate:'idle';
-      if(this.patchModel!==model||this.patchKey!==patchKey){this.patchModel=model;this.patchKey=patchKey;this.patches=buildPatches(model,rotation);}
+      if(this.patchModel!==model||this.patchKey!==patchKey){this.patchModel=model;this.patchKey=patchKey;this.patches=buildPatches(model,rotation,12,1);}
+      const detailUnit=Math.min(8,2**Math.floor(Math.log2(Math.max(1,400*dpr*view.scale/Math.max(...model.dims)))));
+      const gridOpacity=Math.round(Math.max(0,Math.min(1,(180*view.scale*dpr/Math.max(...model.dims)-2)/3))*100)/100;
+      if(this.textureModel!==model||this.textureStickers!==stickers||this.textureColors!==colors||this.textureDetail!==detailUnit||this.textureGrid!==gridOpacity){this.textureModel=model;this.textureStickers=stickers;this.textureColors=colors;this.textureDetail=detailUnit;this.textureGrid=gridOpacity;this.textures=new Map();}
+      const textureFor=face=>{
+        if(this.textures.has(face))return this.textures.get(face);
+        const [rows,cols]=model.shapes[face],unit=8,image=document.createElement('canvas');image.width=cols*unit;image.height=rows*unit;
+        const paint=image.getContext('2d'),borders={};
+        for(const [name,color]of Object.entries(colors)){const rgb=[1,3,5].map(i=>parseInt(color.hex.slice(i,i+2),16)),dark=[16,20,29];borders[name]='rgb('+rgb.map((v,i)=>Math.round(v*(1-gridOpacity)+dark[i]*gridOpacity)).join(',')+')';}
+        for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+          const name=stickers[model.offsets[face]+r*cols+c],color=colors[name]?.hex||'#323d50';
+          paint.fillStyle=gridOpacity?(borders[name]||'#10141d'):color;paint.fillRect(c*unit,r*unit,unit,unit);
+          if(gridOpacity){paint.fillStyle=color;paint.fillRect(c*unit+.25,r*unit+.25,unit-.5,unit-.5);}
+        }
+        let filtered=image;if(detailUnit<unit){filtered=document.createElement('canvas');filtered.width=cols*detailUnit;filtered.height=rows*detailUnit;const filter=filtered.getContext('2d');filter.imageSmoothingEnabled=true;filter.imageSmoothingQuality='high';filter.drawImage(image,0,0,filtered.width,filtered.height);}
+        const result={image:filtered,unit:detailUnit};this.textures.set(face,result);return result;
+      };
       const polygons=[];
       for(const patch of this.patches){
         const normal=rotation&&patch.moving?rotate(patch.normal,rotation.axis,rotation.angle):patch.normal;
-        if(transform(normal)[2]<=0)continue;
+        if(transform(normal)[2]<=1e-7)continue;
         const points=patch.points.map(p=>transform((rotation&&patch.moving?rotate(p,rotation.axis,rotation.angle):p).map(x=>x*scale)));
-        polygons.push({points,color:colors[stickers[patch.index]]?.hex||'#323d50',moving:patch.moving,depth:points.reduce((s,p)=>s+p[2],0)/4});
+        polygons.push({points,patch,depth:points.reduce((s,p)=>s+p[2],0)/4});
       }
       polygons.sort((a,b)=>a.depth-b.depth);
-      for(const poly of polygons){ctx.beginPath();poly.points.forEach((p,i)=>{const f=900/(900-p[2]),x=width/2+p[0]*f,y=height*.48+p[1]*f;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.fillStyle=poly.color;ctx.fill();ctx.lineWidth=poly.moving?.8:.7;ctx.strokeStyle=poly.moving?'#b4a0ff':'#11151d';ctx.stroke();}
+      for(const poly of polygons){
+        const {patch}=poly,{image,unit}=textureFor(patch.face),r=patch.range,uv=[[r.col*unit,r.row*unit],[(r.col+r.cols)*unit,r.row*unit],[(r.col+r.cols)*unit,(r.row+r.rows)*unit],[r.col*unit,(r.row+r.rows)*unit]];
+        const screen=poly.points.map(p=>{const f=900/(900-p[2]);return [width/2+p[0]*f,height*.48+p[1]*f];});
+        for(const indices of [[0,1,2],[0,2,3]])drawTriangle(ctx,image,indices.map(i=>uv[i]),indices.map(i=>screen[i]));
+        if(patch.moving){ctx.beginPath();for(let i=0;i<4;i++)if(patch.edges[i]){ctx.moveTo(...screen[i]);ctx.lineTo(...screen[(i+1)%4]);}ctx.strokeStyle='#b4a0ff';ctx.lineWidth=.9;ctx.stroke();}
+      }
     }
   }
-  LargeCubeView.buildPatches=buildPatches;LargeCubeView.rotate=rotate;
+  LargeCubeView.buildPatches=buildPatches;LargeCubeView.rotate=rotate;LargeCubeView.triangleTransform=triangleTransform;
   root.LargeCubeView=LargeCubeView;
   if(typeof module!=='undefined')module.exports={LargeCubeView};
 })(typeof self!=='undefined'?self:globalThis);
