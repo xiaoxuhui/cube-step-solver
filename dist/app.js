@@ -77,7 +77,7 @@
     });
   }
   function renderCube(){
-    if(isLarge()){cubeEl.replaceChildren();largeView.renderScene({scene:$('scene'),cube:cubeEl,model,stickers,colors,view});return;}
+    if(isLarge()){cubeEl.replaceChildren();largeView.renderScene({scene:$('scene'),cube:cubeEl,model,stickers,colors,view,refreshTextures:true});return;}
     cubeEl.hidden=false;$('scene').querySelector('#large-preview')?.remove();
     cubeEl.replaceChildren();const size=180/Math.max(...model.dims);
     model.cells.forEach((g,i)=>{

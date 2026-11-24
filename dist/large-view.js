@@ -62,7 +62,7 @@
       canvas.onclick=e=>{if(disabled)return;const rect=canvas.getBoundingClientRect(),r=Math.floor((e.clientY-rect.top)/rect.height*rows),c=Math.floor((e.clientX-rect.left)/rect.width*cols);if(r>=0&&r<rows&&c>=0&&c<cols)onPaint(model.offsets[this.face]+r*cols+c);};
       zoom.oninput=()=>{this.zoom=Number(zoom.value);styleSize();};viewport.append(canvas);net.append(tabs,tools,zoomLabel,viewport);viewport.scrollLeft=this.scroll.left;viewport.scrollTop=this.scroll.top;
     }
-    renderScene({scene,cube,model,stickers,colors,view,rotation=null}){
+    renderScene({scene,cube,model,stickers,colors,view,rotation=null,refreshTextures=false}){
       cube.hidden=true;let canvas=scene.querySelector('#large-preview');if(!canvas){canvas=document.createElement('canvas');canvas.id='large-preview';canvas.setAttribute('aria-label','大尺寸魔方三维预览，按真实颜色网格绘制');scene.append(canvas);}
       const width=scene.clientWidth||400,height=scene.clientHeight||335,dpr=Math.min(2,root.devicePixelRatio||1);canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
       const ctx=canvas.getContext('2d'),scale=90/Math.max(...model.dims)*view.scale;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
@@ -72,7 +72,7 @@
       if(this.patchModel!==model||this.patchKey!==patchKey){this.patchModel=model;this.patchKey=patchKey;this.patches=buildPatches(model,rotation,12,1);}
       const detailUnit=Math.min(8,2**Math.floor(Math.log2(Math.max(1,400*dpr*view.scale/Math.max(...model.dims)))));
       const gridOpacity=Math.round(Math.max(0,Math.min(1,(180*view.scale*dpr/Math.max(...model.dims)-2)/3))*100)/100;
-      if(this.textureModel!==model||this.textureStickers!==stickers||this.textureColors!==colors||this.textureDetail!==detailUnit||this.textureGrid!==gridOpacity){this.textureModel=model;this.textureStickers=stickers;this.textureColors=colors;this.textureDetail=detailUnit;this.textureGrid=gridOpacity;this.textures=new Map();}
+      if(refreshTextures||this.textureModel!==model||this.textureStickers!==stickers||this.textureColors!==colors||this.textureDetail!==detailUnit||this.textureGrid!==gridOpacity){this.textureModel=model;this.textureStickers=stickers;this.textureColors=colors;this.textureDetail=detailUnit;this.textureGrid=gridOpacity;this.textures=new Map();}
       const textureFor=face=>{
         if(this.textures.has(face))return this.textures.get(face);
         const [rows,cols]=model.shapes[face],unit=8,image=document.createElement('canvas');image.width=cols*unit;image.height=rows*unit;

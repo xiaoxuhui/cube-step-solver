@@ -22,6 +22,9 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
           }
         }
         if(scene.querySelector('canvas').width!==1000)throw Error('high-DPI preview resolution not used');
+        const changed=model.offsets.F;stickers[changed]=palette[1];view.renderScene({scene,cube,model,stickers,colors,view:{x:0,y:0,z:0,scale:1},refreshTextures:true});
+        const refreshed=view.textures.get('F'),updated=refreshed.image.getContext('2d').getImageData(Math.floor(refreshed.unit/2),Math.floor(refreshed.unit/2),1,1).data;
+        if(Math.abs(updated[0]-239)>20||Math.abs(updated[1]-89)>20)throw Error('manual paint must invalidate cached face textures');
         out.push({size:n,faceColumns:model.shapes.F[1],textureUnit:texture.unit});
       }
       return out;
