@@ -37,7 +37,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile must not overflow');
     await page.locator('#clear').click();await page.locator('#solve').click();
     assert.match(await page.locator('#status').innerText(),/未填写/);
-    await page.getByRole('button',{name:'红色，已填 1 格',exact:true}).click();
+    await page.getByRole('button',{name:'红色，已填 0 格',exact:true}).click();
     await page.getByRole('button',{name:'上面 1行 1列，未填',exact:true}).click();
     await page.reload();
     await page.getByRole('button',{name:'上面 1行 1列，红',exact:true}).waitFor();
@@ -95,11 +95,11 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     await page.locator('#demo').click();
     const unmasked=await currentPattern();
     await page.locator('#black-percent').fill('0');await page.locator('#random-black').click();assert.equal(await currentPattern(),unmasked);
-    await page.locator('#black-percent').fill('50');await page.locator('#random-black').click();assert.equal(await blackCount(),24);
-    await page.locator('#black-percent').fill('100');await page.locator('#random-black').click();assert.equal(await blackCount(),48);
-    assert.equal(await page.locator('.center:disabled').count(),6,'classic fixed centers survive random masking');
+    await page.locator('#black-percent').fill('50');await page.locator('#random-black').click();assert.equal(await blackCount(),27);
+    await page.locator('#black-percent').fill('100');await page.locator('#random-black').click();assert.equal(await blackCount(),54);
+    assert.equal(await page.locator('.center:disabled').count(),0,'center stickers remain editable');
     await page.locator('#black-percent').fill('101');await page.locator('#random-black').click();assert.match(await page.locator('#status').innerText(),/0 到 100/);
-    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/1 到 200/);assert.equal(await page.locator('.sticker').count(),54);
+    await page.locator('#size-x').fill('0');await page.locator('#apply-size').click();assert.match(await page.locator('#status').innerText(),/整数/);assert.equal(await page.locator('.sticker').count(),54);
     await applySize([2,3,4]);
     assert.equal(await page.locator('[data-face="U"] .sticker').count(),8);
     assert.equal(await page.locator('[data-face="R"] .sticker').count(),12);
@@ -156,7 +156,7 @@ const {chromium}=require('C:/Users/25133/.cache/codex-runtimes/codex-primary-run
     assert.deepEqual(errors,[]);
     console.log('PASS: browser worker solve, one-step execution, undo, complete restoration, manual axis rotation, mobile layout, input validation and persistence.');
     console.log('PASS: black brush, ignore-unfilled, zero-step masked goal, one-step partial worker, real animation and undo, complex masked worker solve, mask persistence and seven-color mobile layout.');
-    console.log('PASS: size fields and invalid values, exact random black percentages, fixed centers, 2x3x4 layer constraints and animated undo, history across reload, 4x4 inner slices, independent 2x2 color solving and 7x7 mobile layout.');
+    console.log('PASS: size fields and invalid values, exact random black percentages, editable centers, 2x3x4 layer constraints and animated undo, history across reload, 4x4 inner slices, independent 2x2 color solving and 7x7 mobile layout.');
     console.log('PASS: 7x7 random lengths '+sevenLengths.join(', ')+', visible count, reload persistence and masked restoration.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

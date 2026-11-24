@@ -1,5 +1,5 @@
 (() => {
-  const {faces,names,describe,validatePattern}=CubeCore;
+  const {faces,names,describe}=CubeCore;
   const {CuboidModel}=Cuboid;
   const colors={w:{name:'白',hex:'#f3f4ef'},r:{name:'红',hex:'#ef5966'},g:{name:'绿',hex:'#43c99a'},y:{name:'黄',hex:'#f3d358'},o:{name:'橙',hex:'#f6984c'},b:{name:'蓝',hex:'#508aeb'},k:{name:'黑',hex:'#07090e'}};
   let model=new CuboidModel(),centers=['w','r','g','y','o','b'],stickers=[],selected='w',history=[],scrambleCount=null;
@@ -23,7 +23,7 @@
   try{
     const v=JSON.parse(localStorage.getItem('cube-step-v1'));
     if(v){const candidate=new CuboidModel(v.dimensions||[3,3,3]);
-      if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])&&candidate.cells.every((c,i)=>!c.locked||v.stickers[i]==='k'||v.stickers[i]===v.centers[faces.indexOf(c.face)])){
+      if(v.centers?.length===6&&new Set(v.centers).size===6&&v.centers.every(c=>colors[c]&&c!=='k')&&v.stickers?.length===candidate.cells.length&&v.stickers.every(c=>c===null||colors[c])){
         model=candidate;centers=v.centers;stickers=v.stickers;history=null;
         if(Array.isArray(v.history)&&model.knownSolution(encoded(),v.history)!==null)history=v.history;
         if(Number.isInteger(v.scrambleCount)&&v.scrambleCount>=0&&v.scrambleCount<=10000)scrambleCount=v.scrambleCount;
@@ -70,9 +70,9 @@
       const grid=document.createElement('div');grid.className='face-grid';const [rows,cols]=model.shapes[face];grid.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
       for(let j=0;j<rows*cols;j++){
         const i=model.offsets[face]+j,g=model.cells[i],c=stickers[i],b=document.createElement('button');
-        b.className='sticker'+(g.locked?' center':'');b.style.background=colors[c]?.hex||'#323d50';b.dataset.cell=i;
-        b.setAttribute('aria-label',`${names[face]}面 ${g.row+1}行 ${g.col+1}列，${colors[c]?.name||'未填'}${g.locked?'，中心固定':''}`);
-        b.disabled=g.locked||busy||animating||playing;if(g.locked){b.textContent=face;if(c==='k')b.style.color='#c7d0e5';}
+        b.className='sticker'+(g.center?' center':'');b.style.background=colors[c]?.hex||'#323d50';b.dataset.cell=i;
+        b.setAttribute('aria-label',`${names[face]}面 ${g.row+1}行 ${g.col+1}列，${colors[c]?.name||'未填'}`);
+        b.disabled=busy||animating||playing;if(g.center){b.textContent=face;if(c==='k')b.style.color='#c7d0e5';}
         b.onclick=()=>{stickers[i]=selected;if(selected!=='k')retainHistory();invalidate();status('填色已更新，完成后可以重新计算。');renderAll();};grid.append(b);
       }
       wrap.append(title,grid);net.append(wrap);
@@ -123,24 +123,23 @@
   function renderAll(){renderPalette();renderNet();renderCube();updateSteps();save();}
   function renderCenters(){
     $('centers').replaceChildren();faces.forEach((face,i)=>{
-      const label=document.createElement('label');label.textContent=`${names[face]}面 ${face}`;const sel=document.createElement('select');sel.setAttribute('aria-label',`${names[face]}面中心颜色`);
+      const label=document.createElement('label');label.textContent=`${names[face]}面 ${face}`;const sel=document.createElement('select');sel.setAttribute('aria-label',`${names[face]}面目标颜色`);
       Object.entries(colors).filter(([k])=>k!=='k').forEach(([k,v])=>{const opt=document.createElement('option');opt.value=k;opt.textContent=v.name;sel.append(opt);});sel.value=centers[i];
       sel.onchange=()=>{const old=centers[i],other=centers.indexOf(sel.value),next=sel.value;centers[i]=next;centers[other]=old;stickers=stickers.map(c=>c===old?next:c===next?old:c);invalidate();renderCenters();renderAll();status('目标配色已调整；请对照实物检查其余方格。');};label.append(sel);$('centers').append(label);
     });
   }
   function renderManual(){
     const axis=$('manual-axis').value,ai=model.axisIndex(axis),layer=$('manual-layer');layer.replaceChildren();
-    if(model.classic){for(const [value,text]of [['1','正侧（右 / 上 / 前）'],['-1','负侧（左 / 下 / 后）']]){const o=document.createElement('option');o.value=value;o.textContent=text;layer.append(o);}}
-    else for(let i=0;i<model.dims[ai];i++){const o=document.createElement('option');o.value=i;o.textContent=`第 ${i+1} 层（从${['左','下','后'][ai]}数）`;layer.append(o);}
+    for(let i=0;i<model.dims[ai];i++){const o=document.createElement('option');o.value=i;o.textContent=`第 ${i+1} 层（从${['左','下','后'][ai]}数）`;layer.append(o);}
     for(const opt of $('manual-turn').options)opt.disabled=opt.value!=='2'&&!model.square(axis);if(!model.square(axis))$('manual-turn').value='2';
-    $('manual-hint').textContent=model.classic?'方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。':`正对${['右','上','前'][ai]}侧观察旋转方向。${model.square(axis)?'此轴允许 90° 和 180°。':'此轴的截面不是正方形，仅允许 180°。'}`;
+    $('manual-hint').textContent=`正对${['右','上','前'][ai]}侧观察旋转方向。${model.square(axis)?'此轴允许 90° 和 180°。':'此轴的截面不是正方形，仅允许 180°。'}${model.classic?'第 2 层为中间层，中心格也会随层移动。':''}`;
   }
   function renderSize(){
     model.dims.forEach((n,i)=>$('size-'+['x','y','z'][i]).value=n);$('size-tag').textContent=model.dims.join(' × ');
     $('solver-scope').textContent=model.classic||model.pocket?'二阶、三阶支持任意合法填色求解。':'此尺寸使用置换搜索和化简求解；复杂随机状态会使用打乱记录构造可验证的解。复杂自填状态可能超出搜索范围。';
     $('preview-hint').textContent=isLarge()?'拖动查看各面 · 按真实格数绘制，缩小时平滑显示':'拖动查看各面 · 滚轮缩放';
     document.querySelector('.orientation').textContent=isLarge()?'大尺寸按单面填写。先选一个面，行从上向下、列从左向右；可缩放、滚动，或按行列精确填色。':'展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。';
-    $('paint-hint').textContent='先选颜色，再点方格，也可以展开“手动填写颜色”直接输入。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。'+(model.classic?'中心格固定。':'所有方格均可填写，目标配色见下方。');renderManual();readFace();
+    $('paint-hint').textContent='先选颜色，再点方格，也可以展开“手动填写颜色”直接输入。所有尺寸的中心格和其他格子都能修改；黑色表示忽略。只需将非黑色格子还原到目标颜色的面，目标配色见下方。';renderManual();readFace();
   }
   function readFace(){
     const face=$('input-face').value,[rows,cols]=model.shapes[face],offset=model.offsets[face];
@@ -154,7 +153,6 @@
     const face=$('input-face').value,[rows,cols]=model.shapes[face],offset=model.offsets[face];
     let entered;try{
       entered=ColorInput.parseFace($('face-input').value,rows*cols);
-      if(model.classic&&entered[4]!==faceColor(face)&&entered[4]!=='k')throw Error(`${names[face]}面中心必须是${colors[faceColor(face)].name}色或黑色忽略。`);
     }catch(error){$('face-input-status').textContent=error.message;$('face-input-status').className='error';return;}
     for(let j=0;j<entered.length;j++)stickers[offset+j]=entered[j];
     retainHistory();invalidate();faceDraftDirty=false;if(isLarge())largeView.face=face;renderAll();
@@ -174,7 +172,7 @@
   $('manual-axis').onchange=renderManual;
   function ensureWorker(){
     if(worker)return;
-    worker=new Worker('solver-worker.js?v=allblack1');worker.onmessage=({data})=>{
+    worker=new Worker('solver-worker.js?v=centers1');worker.onmessage=({data})=>{
       if(data.id!==job)return;if(data.kind==='progress'){status(data.message);return;}if(data.kind==='error'){workerError(data.message);return;}
       if(data.kind==='scramble'){
         fromPattern(data.state);history=data.moves;scrambleCount=data.moves.length;finishSolve();renderAll();status(`本次随机打乱 ${scrambleCount} 步。可以涂黑后计算还原步骤。`);return;
@@ -202,12 +200,12 @@
   };
   $('black-percent').onchange=save;
   $('all-black').onclick=()=>{stickers.fill('k');invalidate();renderAll();status('所有格子已涂黑，包含三阶中心格。黑色全部忽略，无需转动；可再填入需要还原的颜色。','success');};
-  $('clear').onclick=()=>{stickers=model.cells.map(g=>g.locked?faceColor(g.face):null);history=null;scrambleCount=null;invalidate();renderAll();status(model.classic?'已保留六个中心。请选择画笔，填写其他 48 格。':'已清空方格。可填写颜色，或将未填格涂黑。');};
+  $('clear').onclick=()=>{stickers.fill(null);history=null;scrambleCount=null;invalidate();renderAll();status('已清空所有方格，包含中心格。可填写颜色，或将未填格涂黑。');};
   $('mask-empty').onclick=()=>{stickers=stickers.map(c=>c===null?'k':c);invalidate();renderAll();status('未填格已涂黑；计算时只要求非黑色格子归位。');};
   function finishSolve(){clearTimeout(timer);timer=null;busy=false;renderPalette();renderNet();updateSteps();}
   function workerError(message){finishSolve();worker?.terminate();worker=null;status(message,'error');}
   $('solve').onclick=()=>{
-    try{model.classic?validatePattern(encoded(),Cube):model.validate(encoded());}catch(e){status(e.message,'error');return;}
+    try{model.validate(encoded());}catch(e){status(e.message,'error');return;}
     invalidate();solveStart=snapshot();if(model.isSolved(encoded())){hasPlan=true;planStart=solveStart;updateSteps();status(stickers.includes('k')?'非黑色格子已经还原，黑色格子忽略，不需要转动。':'这个魔方已经还原，不需要转动。','success');return;}
     if(location.protocol==='file:'){status('请通过本地启动器或网站打开，浏览器直接打开文件不支持后台求解。','error');return;}
     busy=true;renderPalette();renderNet();updateSteps();status('正在计算还原步骤…');const id=++job;
@@ -294,9 +292,9 @@
     }else{updateSteps();save();}
   };
   $('manual-apply').onclick=async()=>{
-    try{model.classic?validatePattern(encoded(),Cube):model.validate(encoded());}catch(e){status(e.message,'error');return;}
+    try{model.validate(encoded());}catch(e){status(e.message,'error');return;}
     const axis=$('manual-axis').value,layer=Number($('manual-layer').value),turn=$('manual-turn').value;
-    const move=model.classic?({X:layer>0?'R':'L',Y:layer>0?'U':'D',Z:layer>0?'F':'B'}[axis]+turn):{axis,layer,turns:turn==='2'?2:turn==="'"?-1:1};
+    const move={axis,layer,turns:turn==='2'?2:turn==="'"?-1:1};
     invalidate();await animateMove(move);renderAll();status(`已执行 ${moveInfo(move).title}。可以重新计算还原方案。`);
   };
   $('home-view').onclick=()=>{view={x:-25,y:-35,z:0,scale:1};applyView();};document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view[b.dataset.view.toLowerCase()]+=90;applyView();});

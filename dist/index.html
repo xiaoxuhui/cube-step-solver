@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#10131c">
   <meta name="description" content="设置 X、Y、Z 方向格数，随机魔方和随机涂黑，跟随每一步旋转还原非黑色格子。">
   <title>魔方一步步 · 多尺寸魔方</title>
-  <link rel="stylesheet" href="style.css?v=huge1">
+  <link rel="stylesheet" href="style.css?v=centers1">
   <script src="vendor/cube.js" defer></script>
   <script src="core.js?v=allblack1" defer></script>
-  <script src="cuboid.js?v=parallel1" defer></script>
+  <script src="cuboid.js?v=centers1" defer></script>
   <script src="large-view.js?v=parallel1" defer></script>
   <script src="net-motion.js?v=parallel1" defer></script>
   <script src="color-input.js?v=expand1" defer></script>
   <script src="huge-model.js?v=allblack1" defer></script>
   <script src="huge-app.js?v=allblack1" defer></script>
-  <script src="app.js?v=allblack1" defer></script>
+  <script src="app.js?v=centers1" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
@@ -26,7 +26,7 @@
     <div class="workspace">
       <section class="panel input-panel" aria-labelledby="input-title">
         <div class="panel-heading"><h2 id="input-title">六面填色</h2><button id="clear" class="text-button">清空重填</button></div>
-        <p id="paint-hint" class="hint">先选颜色，再点方格。黑色表示忽略：只需将非黑色格子还原到对应颜色的面。三阶中心格固定。</p>
+        <p id="paint-hint" class="hint">先选颜色，再点方格。所有尺寸的中心格都可以修改；黑色表示忽略，只需将非黑色格子还原到目标配色的面。</p>
         <div id="palette" class="palette" role="group" aria-label="选择画笔颜色"></div>
         <button id="mask-empty" class="text-button">将未填格涂黑（忽略）</button>
         <details id="manual-colors" class="manual-colors"><summary>手动填写颜色（输入或粘贴）</summary><p>选一个面，按从上到下、从左到右填写。可用中文颜色，或 W 白、R 红、G 绿、Y 黄、O 橙、B 蓝、K 黑；空格和换行都可以。W9 表示连续 9 个白格，K9 表示 9 个忽略格，? 表示未填。</p><label>填写哪个面<select id="input-face" aria-label="手动填写的面"><option value="U">上 U</option><option value="R">右 R</option><option value="F" selected>前 F</option><option value="D">下 D</option><option value="L">左 L</option><option value="B">后 B</option></select></label><p id="face-input-shape" class="hint"></p><textarea id="face-input" rows="6" maxlength="500000" spellcheck="false" aria-label="手动填写面颜色" placeholder="例如：GGG 换行 GGG 换行 GGG，也可填写 G9"></textarea><div class="face-input-buttons"><button id="read-face" class="secondary">读取当前面</button><button id="apply-face" class="primary">应用到此面</button></div><p id="face-input-status" role="status" aria-live="polite"></p></details>
@@ -34,7 +34,7 @@
         <div class="net-view-controls"><button id="net-run" class="primary" disabled>运行</button><button id="net-next" class="secondary" disabled>下一步</button><button id="net-reset" class="secondary" disabled>重置</button></div>
         <div class="net-scroll"><div id="net" class="net" aria-label="魔方六面展开图"></div></div>
         <p class="orientation">展开方向：前面居中，上、下分别在前面的上方和下方；背面在右面右侧。按展开图方向填写。</p>
-        <details><summary>怎么对照实物填色？</summary><p>先选定上面 U 和前面 F，并保持这两个方向。左右面像书页一样向外展开，背面接在右面外侧。上面的下边、下面的上边都与前面相接。可拖动右侧模型核对各面的方向。</p><p>目标配色默认上白、下黄、前绿、后蓝、左橙、右红。可在下面调整。三阶中心格固定；其他尺寸以目标配色判断还原，所有方格均可填写。</p><div id="centers" class="centers"></div></details>
+        <details><summary>怎么对照实物填色？／调整目标配色</summary><p>先选定上面 U 和前面 F，并保持这两个方向。左右面像书页一样向外展开，背面接在右面外侧。上面的下边、下面的上边都与前面相接。可拖动右侧模型核对各面的方向。</p><p>目标配色默认上白、下黄、前绿、后蓝、左橙、右红。下面设置的是还原目标；修改格子（包括中心）不会自动改写目标。所有尺寸的所有格子均可填写或涂黑，三阶也支持中间层转动。</p><div id="centers" class="centers"></div></details>
         <label class="animation-control parallel-option"><input id="parallel-enabled" type="checkbox">并行转动／还原</label>
         <p class="run-help">连续同轴的不同层可同时转动，不跨越其他轴。切换模式保留当前状态；开启后上一步、下一步和运行均按组执行。</p>
         <div class="solve-actions"><button id="solve" class="primary">计算还原步骤</button><button id="solve-parallel" class="secondary">计算并行还原</button></div>
@@ -60,7 +60,7 @@
           <p class="run-help">重置会恢复到本次计算前的魔方；暂停后当前转动完成即停止。关闭动画可加快高速运行。</p>
           <p id="solver-method" class="run-help" role="status"></p>
         </div>
-        <details class="manual"><summary>手动转动一层</summary><p>每次转动后需要重新计算方案。非正方形截面仅允许 180°，以保持长方体尺寸。</p><div class="manual-controls"><label>轴<select id="manual-axis"><option>X</option><option>Y</option><option>Z</option></select></label><label>层<select id="manual-layer"><option value="1">正侧（右 / 上 / 前）</option><option value="-1">负侧（左 / 下 / 后）</option></select></label><label>方向<select id="manual-turn"><option value="">顺时针 90°</option><option value="'">逆时针 90°</option><option value="2">旋转 180°</option></select></label><button id="manual-apply" class="secondary">转动一层</button></div><p id="manual-hint">方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。</p></details>
+        <details class="manual"><summary>手动转动一层</summary><p>每次转动后需要重新计算方案。所有尺寸均可选择任意一层，包括三阶的第 2 层。非正方形截面仅允许 180°，以保持长方体尺寸。</p><div class="manual-controls"><label>轴<select id="manual-axis"><option>X</option><option>Y</option><option>Z</option></select></label><label>层<select id="manual-layer"><option value="0">第 1 层</option><option value="1">第 2 层</option><option value="2">第 3 层</option></select></label><label>方向<select id="manual-turn"><option value="">顺时针 90°</option><option value="'">逆时针 90°</option><option value="2">旋转 180°</option></select></label><button id="manual-apply" class="secondary">转动一层</button></div><p id="manual-hint">方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。</p></details>
       </section>
     </div>
     <footer><span>一步一转，直到所有非黑色格子归位。</span><span>颜色和还原计算均在你的设备上处理。</span></footer>

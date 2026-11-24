@@ -12,7 +12,7 @@
         for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
           const x=2*c-X+1,y=Y-1-2*r,z=2*c-Z+1;
           const g={F:{p:[x,y,Z-1],n:[0,0,1],rot:''},B:{p:[-x,y,1-Z],n:[0,0,-1],rot:'rotateY(180deg)'},R:{p:[X-1,y,-z],n:[1,0,0],rot:'rotateY(90deg)'},L:{p:[1-X,y,z],n:[-1,0,0],rot:'rotateY(-90deg)'},U:{p:[x,Y-1,2*r-Z+1],n:[0,1,0],rot:'rotateX(90deg)'},D:{p:[x,1-Y,Z-1-2*r],n:[0,-1,0],rot:'rotateX(-90deg)'}}[f];
-          this.cells.push({...g,face:f,row:r,col:c,index:r*cols+c,locked:this.classic&&r===1&&c===1});
+          this.cells.push({...g,face:f,row:r,col:c,index:r*cols+c,locked:false,center:rows%2===1&&cols%2===1&&r===Math.floor(rows/2)&&c===Math.floor(cols/2)});
         }
       }
       this.solved=this.cells.map(c=>c.face).join('');this.positions=new Map(this.cells.map((g,i)=>[key(g.p,g.n),i]));
@@ -76,6 +76,15 @@
       return out.join('');
     }
     inverseGroup(group){return this.normalizeGroup(group).map(move=>this.inverse(move));}
+    centerFrames(){
+      if(!this.classic)throw Error('中心朝向枚举仅用于三阶。');
+      const signature=text=>faces.map((f,i)=>text[i*9+4]).join(''),queue=[{state:this.solved,moves:[]}],seen=new Set([signature(this.solved)]);
+      for(let i=0;i<queue.length;i++)for(const axis of ['X','Y','Z'])for(const turns of [1,-1,2]){
+        const move={axis,layer:1,turns},state=this.apply(queue[i].state,move),key=signature(state);
+        if(!seen.has(key)){seen.add(key);queue.push({state,moves:[...queue[i].moves,move]});}
+      }
+      return queue;
+    }
     solverPattern(text){
       if(this.classic)return text;
       if(!this.pocket)throw Error('此尺寸不使用角块求解器。');

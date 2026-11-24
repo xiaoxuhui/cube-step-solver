@@ -1,5 +1,5 @@
 importScripts('vendor/cube.js', 'vendor/solve.js', 'core.js?v=allblack1');
-importScripts('cuboid.js?v=parallel1');
+importScripts('cuboid.js?v=centers1');
 let initialized=false;
 self.onmessage=event=>{
   const {text,id,dimensions=[3,3,3],history}=event.data;
@@ -22,6 +22,25 @@ self.onmessage=event=>{
       let state=text;for(const move of moves)state=model.apply(state,move);
       if(!model.isSolved(state))throw Error('未能验证还原方案，请重新计算。');
       sendSolution(moves,{method,baseline});return;
+    }
+    if(model.classic){
+      model.validate(text);
+      // Search all layers, so sparse goals and simple middle-slice turns stay short.
+      const short=model.shortSolve(text,3,12000);
+      if(short){sendSolution(short,{method:'置换搜索（含中间层）'});return;}
+      self.postMessage({id,kind:'progress',message:'正在匹配中心朝向并计算三阶还原步骤…'});
+      let candidate=null,lastError=null;
+      for(const frame of model.centerFrames()){
+        let state=text;for(const move of frame.moves)state=model.apply(state,move);
+        if(CubeCore.faces.some((f,i)=>state[i*9+4]!==f&&state[i*9+4]!=='*'))continue;
+        try{candidate={prefix:frame.moves,cube:CubeCore.completePattern(state,Cube)};break;}catch(error){lastError=error;}
+      }
+      if(!candidate)throw lastError||Error('当前中心颜色无法通过层转动匹配目标配色。中心格可以自由填写；请核对六面的目标颜色，或将不关心的中心涂黑。');
+      if(!initialized){self.postMessage({id,kind:'progress',message:'正在准备求解器，首次使用需要几秒钟…'});Cube.initSolver();initialized=true;}
+      const outer=candidate.cube.isSolved()?[]:candidate.cube.solve().trim().split(/\s+/).filter(Boolean),moves=[...candidate.prefix,...outer];
+      let current=text,stop=0;while(!model.isSolved(current)&&stop<moves.length)current=model.apply(current,moves[stop++]);
+      if(!model.isSolved(current))throw Error('三阶还原方案验证失败，请核对填色。');
+      sendSolution(moves.slice(0,stop),{method:candidate.prefix.length?'中心朝向匹配＋二阶段求解':'二阶段求解'});return;
     }
     if(model.pocket)model.validate(text);
     const solverText=model.solverPattern(text);

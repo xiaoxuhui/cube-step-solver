@@ -15,7 +15,7 @@ const {formatFace}=require('./dist/color-input');
     async function solve(){await page.locator('#solve').click();await page.waitForFunction(()=>!document.getElementById('next').disabled,{},{timeout:180000});}
     await input('F','绿绿绿\n绿绿绿\n绿绿黑');assert.equal((await saved()).stickers[26],'k');
     const previous=await pattern();await input('F','G8');assert.match(await page.locator('#face-input-status').innerText(),/目前填写了 8 格/);assert.equal(await pattern(),previous);
-    await input('F','G4R1G4');assert.match(await page.locator('#face-input-status').innerText(),/中心必须/);assert.equal(await pattern(),previous);
+    await input('F','G4R1G4');assert.match(await page.locator('#face-input-status').innerText(),/已应用 9 格/);assert.equal((await saved()).stickers[22],'r');
     const target=new Cube().move("R U F2 L' B D R2 U2 F'").asString(),faces=['U','R','F','D','L','B'],centers=['w','r','g','y','o','b'];
     for(let i=0;i<6;i++)await input(faces[i],formatFace([...target.slice(i*9,i*9+9)].map(c=>centers[faces.indexOf(c)]),3));
     assert.equal(await pattern(),target);await solve();
