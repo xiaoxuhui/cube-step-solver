@@ -16,6 +16,7 @@
   <script src="huge-model.js?v=allblack1" defer></script>
   <script src="huge-app.js?v=allblack1" defer></script>
   <script src="app.js?v=centers1" defer></script>
+  <script src="backup.js" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark">▦</span>魔方一步步</a><span id="size-tag" class="tag">3 × 3 × 3</span></header>
@@ -63,6 +64,7 @@
         <details class="manual"><summary>手动转动一层</summary><p>每次转动后需要重新计算方案。所有尺寸均可选择任意一层，包括三阶的第 2 层。非正方形截面仅允许 180°，以保持长方体尺寸。</p><div class="manual-controls"><label>轴<select id="manual-axis"><option>X</option><option>Y</option><option>Z</option></select></label><label>层<select id="manual-layer"><option value="0">第 1 层</option><option value="1">第 2 层</option><option value="2">第 3 层</option></select></label><label>方向<select id="manual-turn"><option value="">顺时针 90°</option><option value="'">逆时针 90°</option><option value="2">旋转 180°</option></select></label><button id="manual-apply" class="secondary">转动一层</button></div><p id="manual-hint">方向均为正对所转面的视角。X / Y / Z 视角按钮仅改变观看角度。</p></details>
       </section>
     </div>
+    <section class="panel" aria-label="存档备份"><h2>存档备份</h2><button id="backup-export" type="button">导出存档</button> <label>导入存档 <input id="backup-import" type="file" accept="application/json,.json"></label><p id="backup-status" role="status" aria-live="polite"></p></section>
     <footer><span>一步一转，直到所有非黑色格子归位。</span><span>颜色和还原计算均在你的设备上处理。</span></footer>
   </main>
 </body>

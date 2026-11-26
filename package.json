@@ -1,5 +1,5 @@
 {
   "name": "cube-step-solver",
   "private": true,
-  "scripts": { "start": "node server.cjs", "test": "node test.cjs" }
+  "scripts": { "start": "node server.cjs", "test": "node test.cjs && node --test backup.test.cjs" }
 }
